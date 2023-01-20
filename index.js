@@ -99,7 +99,7 @@ client.on(Events.InteractionCreate, async interaction => {
 		await command.execute(interaction);
 	} catch (error) {
 		console.error(error);
-		await interaction.reply({
+		interaction.reply({
 			content: 'Error on command execution.',
 			ephemeral: true
 		});
