@@ -147,7 +147,7 @@ client.on(Events.InteractionCreate, async interaction => {
 			else if (serverQueue.repeat == 1) serverQueue.repeat = 2;
 			else if (serverQueue.repeat == 2) serverQueue.repeat = 0;
 			updateQueue(interaction.guild, interaction.message);
-			break
+		break
 
 		case 'random':
 			if (!serverQueue?.songs.length) break;
