@@ -55,7 +55,7 @@ client.once(Events.ClientReady, client => {
 });
 
 const queue = new Map();
-var idleDisconnectTimer;
+var idleDisconnectTimer, aloneDisconnectTimer;
 const guilds = require('./guilds.json').guilds;
 
 const {
@@ -194,13 +194,12 @@ client.on(Events.InteractionCreate, async interaction => {
 client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 	var serverQueue = queue.get(oldState.guild.id)
 	var voiceChannel = serverQueue?.voiceChannel;
-	var connection = serverQueue?.connection;
 
 	if (!voiceChannel || voiceChannel.id != oldState.channelId) return;
 	if (oldState.channelId && !newState.channelId)
-		global.setTimeout(async () => {
+		aloneDisconnectTimer = global.setTimeout(async () => {
 			if (voiceChannel.members.filter(m => !m.user.bot).size) return;
-			if (connection) connection.destroy();
+			if (serverQueue?.connection) serverQueue?.connection.destroy();
 			if (radioState) radioState = false;
 			queue.delete(voiceChannel.guildId);
 			updateQueue(voiceChannel.guild, await getMessage(voiceChannel.guild));
@@ -451,6 +450,7 @@ async function setQueue(message, result, resultList, interactionMessage) {
 						voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5000)
 					]);
 				} catch (error) {
+					global.clearTimeout(aloneDisconnectTimer);
 					queue.delete(message.guild.id);
 					updateQueue(message.guild, interactionMessage);
 					connection.destroy();
@@ -590,6 +590,7 @@ async function streamRadio(interaction, station, voiceChannel) {
 					voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5000)
 				]);
 			} catch (error) {
+				global.clearTimeout(aloneDisconnectTimer);
 				queue.delete(interaction.guild.id);
 				updateQueue(interaction.guild, interaction.message);
 			}
