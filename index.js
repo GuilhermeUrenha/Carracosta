@@ -185,7 +185,7 @@ client.on(Events.InteractionCreate, async interaction => {
 	if (interaction?.member?.voice?.channel)
 		voiceChannel = interaction.member.voice.channel;
 	else return;
-	interaction.deferUpdate().catch(console.error);
+	await interaction.deferUpdate().catch(console.error);
 	if (interaction.customId == 'station')
 		streamRadio(interaction, interaction.values[0], voiceChannel);
 });
