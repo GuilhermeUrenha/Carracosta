@@ -194,12 +194,13 @@ client.on(Events.InteractionCreate, async interaction => {
 client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 	var serverQueue = queue.get(oldState.guild.id)
 	var voiceChannel = serverQueue?.voiceChannel;
+	var connection = serverQueue?.connection;
 
 	if (!voiceChannel || voiceChannel.id != oldState.channelId) return;
 	if (oldState.channelId && !newState.channelId)
 		aloneDisconnectTimer = global.setTimeout(async () => {
 			if (voiceChannel.members.filter(m => !m.user.bot).size) return;
-			if (serverQueue?.connection) serverQueue?.connection.destroy();
+			if (connection) connection.destroy();
 			if (radioState) radioState = false;
 			queue.delete(voiceChannel.guildId);
 			updateQueue(voiceChannel.guild, await getMessage(voiceChannel.guild));
