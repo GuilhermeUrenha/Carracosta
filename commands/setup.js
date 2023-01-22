@@ -14,20 +14,22 @@ module.exports = {
 		.setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
 	async execute(interaction) {
 		const file = '.\\guilds.json';
+		const { 
+			defaultImage, 
+			buttonRow, 
+			radioRow 
+		} = require('../index.js');
 		var guilds = require('../guilds.json').guilds;
 		var messageId, channelId, message, channel;
 
 		const Setup = new EmbedBuilder()
 			.setColor(interaction.guild.members.me.displayColor)
 			.setTitle('No Song')
-			.setImage('https://media.discordapp.net/attachments/465329247511379969/1055000440888111124/bluepen.png?width=788&height=676')
+			.setImage(defaultImage)
 			.setFooter({
 				text: `0 songs in queue.`,
 				iconURL: interaction.client.user.displayAvatarURL()
 			});
-
-		var buttonRow = require('../index.js').buttonRow;
-		var radioRow = require('../index.js').radioRow;
 
 		let textChannel = 0;
 		var channels = interaction.guild.channels.cache.filter(channel => channel.type == textChannel);

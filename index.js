@@ -55,8 +55,11 @@ client.once(Events.ClientReady, client => {
 });
 
 const queue = new Map();
-var idleDisconnectTimer, aloneDisconnectTimer;
+const defaultImage = 'https://media.discordapp.net/attachments/465329247511379969/1055000440888111124/bluepen.png?width=788&height=676',
+	  radioImage   = 'https://media.discordapp.net/attachments/465329247511379969/1057745459315228694/eboy.jpg';
+exports.defaultImage = defaultImage;
 const guilds = require('./guilds.json').guilds;
+var idleDisconnectTimer, aloneDisconnectTimer;
 
 const {
 	EmbedBuilder,
@@ -69,14 +72,14 @@ const {
 const voice = require('@discordjs/voice');
 
 const playdl = require('play-dl');
-var youtubeData = JSON.parse(fs.readFileSync('.\\.data\\youtube.data'));
-let cookie = JSON.stringify(youtubeData.cookie).replaceAll(':', '=').replaceAll(',', '; ').replaceAll(/(?:"|{|})/g, '');
+const youtubeData = JSON.parse(fs.readFileSync('.\\.data\\youtube.data'));
+const cookie = JSON.stringify(youtubeData.cookie).replaceAll(':', '=').replaceAll(',', '; ').replaceAll(/(?:"|{|})/g, '');
 playdl.setToken({
 	youtube: {
 		cookie: cookie
 	}
 });
-var spotifyData = JSON.parse(fs.readFileSync('.\\.data\\spotify.data'));
+const spotifyData = JSON.parse(fs.readFileSync('.\\.data\\spotify.data'));
 playdl.setToken({
 	spotify: {
 		client_id: spotifyData.client_id,
@@ -109,7 +112,7 @@ client.on(Events.InteractionCreate, async interaction => {
 // Button
 client.on(Events.InteractionCreate, async interaction => {
 	if (!interaction.isButton()) return;
-	var action = interaction.customId;
+	const action = interaction.customId;
 	var serverQueue = queue.get(interaction.guildId);
 	if (!serverQueue && action != 'radio') return interaction.deferUpdate().catch(console.error);
 
@@ -123,11 +126,17 @@ client.on(Events.InteractionCreate, async interaction => {
 	if (!permissions.has('CONNECT') || !permissions.has('SPEAK'))
 		return interaction.deferUpdate().catch(console.error);
 
-	var playerState = serverQueue?.player._state.status;
+	const playerState = serverQueue?.player._state.status;
 	switch (action) {
 		case 'pause':
-			if (playerState == voice.AudioPlayerStatus.Playing) serverQueue.player.pause();
-			else if (playerState == voice.AudioPlayerStatus.Paused) serverQueue.player.unpause();
+			if (playerState == voice.AudioPlayerStatus.Playing) {
+				buttonRow.components[0].data.style = ButtonStyle.Primary;
+				serverQueue.player.pause();
+			}
+			else if (playerState == voice.AudioPlayerStatus.Paused) {
+				buttonRow.components[0].data.style = ButtonStyle.Secondary;
+				serverQueue.player.unpause();
+			}
 			updateQueue(interaction.guild, interaction.message);
 		break;
 
@@ -247,7 +256,7 @@ client.on(Events.MessageCreate, async message => {
 	if (playdl.is_expired())
 		await playdl.refreshToken();
 
-	var type = await playdl.validate(message.content);
+	const type = await playdl.validate(message.content);
 	if (type == 'yt_video') {
 		songInfo = await playdl.video_info(message.content);
 		result = {
@@ -329,7 +338,7 @@ client.on(Events.MessageCreate, async message => {
 	}
 });
 
-var buttonRow = new ActionRowBuilder()
+const buttonRow = new ActionRowBuilder()
 	.addComponents(
 		new ButtonBuilder()
 		.setCustomId('pause')
@@ -352,13 +361,15 @@ var buttonRow = new ActionRowBuilder()
 		.setLabel('\u21C4')
 		.setStyle(ButtonStyle.Secondary));
 exports.buttonRow = buttonRow;
-var radioRow = new ActionRowBuilder()
+
+const radioRow = new ActionRowBuilder()
 	.addComponents(new ButtonBuilder()
 		.setCustomId('radio')
 		.setLabel('\u23DA')
 		.setStyle(ButtonStyle.Secondary));
 exports.radioRow = radioRow;
-var menu = new StringSelectMenuBuilder()
+
+const menu = new StringSelectMenuBuilder()
 	.setCustomId('station')
 	.setPlaceholder('No station selected.')
 	.addOptions({
@@ -414,7 +425,8 @@ var menu = new StringSelectMenuBuilder()
 		description: 'http://www.radionativafm.com.br',
 		value: 'https://sonicpanel.oficialserver.com:7041/;'
 	});
-var stationRow = new ActionRowBuilder()
+
+const stationRow = new ActionRowBuilder()
 	.addComponents(menu);
 
 async function setQueue(message, result, resultList, interactionMessage) {
@@ -518,7 +530,6 @@ async function streamSong(guild, song, interactionMessage) {
 }
 
 async function updateQueue(guild, interactionMessage) {
-	if (!interactionMessage) return;
 	var serverQueue = queue.get(guild.id);
 	if (!serverQueue?.songs) serverQueue = {
 		songs: []
@@ -548,17 +559,17 @@ async function updateQueue(guild, interactionMessage) {
 	if (serverQueue.player?._state.status == voice.AudioPlayerStatus.Paused)
 		footerText += '  |  Paused.';
 
-	var Display = new EmbedBuilder()
+	var display = new EmbedBuilder()
 		.setColor(guild.members.me.displayColor)
 		.setTitle('No Song')
-		.setImage('https://media.discordapp.net/attachments/465329247511379969/1055000440888111124/bluepen.png?width=788&height=676')
+		.setImage(defaultImage)
 		.setFooter({
 			text: footerText,
 			iconURL: client.user.displayAvatarURL()
 		});
 	if (serverQueue.songs.length) {
-		Display.setTitle(`[${serverQueue.songs[0].durRaw}] - ${serverQueue.songs[0].title}`);
-		Display.setImage(serverQueue.songs[0].thumb);
+		display.setTitle(`[${serverQueue.songs[0].durRaw}] - ${serverQueue.songs[0].title}`);
+		display.setImage(serverQueue.songs[0].thumb);
 	}
 	if (!radioState) {
 		buttonRow.components.forEach(component => component.data.disabled = false);
@@ -566,13 +577,14 @@ async function updateQueue(guild, interactionMessage) {
 		menu.setPlaceholder('No station selected.');
 		return interactionMessage.edit({
 			content: queueText,
-			embeds: [Display],
+			embeds: [display],
 			components: [buttonRow, radioRow]
 		});
 	}
 	interactionMessage.edit({
 		content: queueText,
-		embeds: [Display]
+		embeds: [display],
+		components: [buttonRow, radioRow]
 	});
 }
 
@@ -662,18 +674,18 @@ async function updateRadio(interactionMessage, station) {
 			queueText = queueText.slice(queueText.indexOf('\n'));
 			queueText = 'Q__ueue__\n\t\t**[ . . . ]**' + queueText;
 		}
-		var Display = new EmbedBuilder()
+		var display = new EmbedBuilder()
 			.setColor(interactionMessage.guild.members.me.displayColor)
 			.setTitle(stationName)
 			.setURL(stationUrl)
-			.setImage('https://media.discordapp.net/attachments/465329247511379969/1057745459315228694/eboy.jpg')
+			.setImage(radioImage)
 			.setFooter({
 				text: 'Thanks for listening.',
 				iconURL: client.user.displayAvatarURL()
 			});
 		return interactionMessage.edit({
 			content: queueText,
-			embeds: [Display],
+			embeds: [display],
 			components: [buttonRow, radioRow, stationRow]
 		});
 	}
@@ -695,10 +707,10 @@ async function updateRadio(interactionMessage, station) {
 			if (!serverQueue?.songs.length) queue.delete(interactionMessage.guild.id);
 			serverQueue?.songs.shift();
 			serverQueue.radio = false;
-			var Display = new EmbedBuilder()
+			var display = new EmbedBuilder()
 				.setColor(interactionMessage.guild.members.me.displayColor)
 				.setTitle('No Song')
-				.setImage('https://media.discordapp.net/attachments/465329247511379969/1055000440888111124/bluepen.png?width=788&height=676')
+				.setImage(defaultImage)
 				.setFooter({
 					text: `0 songs in queue.`,
 					iconURL: client.user.displayAvatarURL()
@@ -710,7 +722,7 @@ async function updateRadio(interactionMessage, station) {
 				updateQueue(interactionMessage.guild, interactionMessage);
 			}
 			return interactionMessage.edit({
-				embeds: [Display],
+				embeds: [display],
 				components: [buttonRow, radioRow]
 			});
 		}
@@ -721,7 +733,7 @@ async function updateRadio(interactionMessage, station) {
 }
 
 async function resetSetups(client) {
-	var channels, channel, message, Display;
+	var channels, channel, message, display;
 	for (g of guilds) {
 		let textChannel = 0
 		let guild = await client.guilds.fetch(g.guildId);
@@ -733,17 +745,17 @@ async function resetSetups(client) {
 			});
 			message = await messages.get(g.messageId);
 		}
-		Display = new EmbedBuilder()
+		display = new EmbedBuilder()
 			.setColor(guild.members.me.displayColor)
 			.setTitle('No Song')
-			.setImage('https://media.discordapp.net/attachments/465329247511379969/1055000440888111124/bluepen.png?width=788&height=676')
+			.setImage(defaultImage)
 			.setFooter({
 				text: `0 songs in queue.`,
 				iconURL: client.user.displayAvatarURL()
 			});
 		await message.edit({
 			content: 'Q__ueue__\n\u2800',
-			embeds: [Display],
+			embeds: [display],
 			components: [buttonRow, radioRow]
 		});
 	}
