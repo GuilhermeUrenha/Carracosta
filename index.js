@@ -213,7 +213,7 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 			if (radioState) radioState = false;
 			queue.delete(voiceChannel.guildId);
 			updateQueue(voiceChannel.guild, await getMessage(voiceChannel.guild));
-		}, 60 * 1000);
+		}, 20 * 1000);
 });
 
 // Message
