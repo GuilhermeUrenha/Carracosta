@@ -22,7 +22,7 @@ module.exports = {
 		var guilds = require('../guilds.json').guilds;
 		var messageId, channelId, message, channel;
 
-		const Setup = new EmbedBuilder()
+		const setup = new EmbedBuilder()
 			.setColor(interaction.guild.members.me.displayColor)
 			.setTitle('No Song')
 			.setImage(defaultImage)
@@ -67,7 +67,7 @@ module.exports = {
 				}
 				message = await channel.send({
 					content: 'Q__ueue__\n\u2800',
-					embeds: [Setup],
+					embeds: [setup],
 					components: [buttonRow, radioRow]
 				});
 				guilds.push({
@@ -91,7 +91,7 @@ module.exports = {
 			}).catch(console.error);
 			message = await channel.send({
 				content: 'Q__ueue__\n\u2800',
-				embeds: [Setup],
+				embeds: [setup],
 				components: [buttonRow, radioRow]
 			});
 			guilds.push({
