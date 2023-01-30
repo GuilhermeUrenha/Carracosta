@@ -1,4 +1,4 @@
-function Time(Sec){
+export function Time(Sec){
 	if(Sec / 60 >= 1){
 		var Min = parseInt((Sec / 60), 10);
 		Sec %= 60;
@@ -23,4 +23,4 @@ function Time(Sec){
 		return `${Hr}:${Min}:${parseFloat(Sec)}`;
 	else	
 		return `${Hr}:${Min}:${parseFloat(Sec).toFixed(2)}`;
-} exports.Time = Time;
+}

@@ -1,16 +1,7 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const {
-	Client,
-	Collection,
-	GatewayIntentBits,
-	Events,
-	ActivityType
-} = require('discord.js');
-const {
-	token,
-	clientId
-} = require('./config.json');
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { Client, Collection, GatewayIntentBits, Events, ActivityType } from 'discord.js';
+import { token, clientId } from './config.json';
 
 const client = new Client({
 	intents: [
@@ -30,10 +21,10 @@ try {
 
 // Commands
 client.commands = new Collection();
-const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+const commandsPath = join(__dirname, 'commands');
+const commandFiles = readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 for (const file of commandFiles) {
-	const filePath = path.join(commandsPath, file);
+	const filePath = join(commandsPath, file);
 	const command = require(filePath);
 	if ('data' in command && 'execute' in command)
 		client.commands.set(command.data.name, command);
@@ -57,8 +48,9 @@ client.once(Events.ClientReady, client => {
 const queueMap = new Map();
 const defaultImage = 'https://media.discordapp.net/attachments/465329247511379969/1055000440888111124/bluepen.png?width=788&height=676',
 	radioImage = 'https://media.discordapp.net/attachments/465329247511379969/1057745459315228694/eboy.jpg';
-exports.defaultImage = defaultImage;
-const guilds = require('./guilds.json').guilds;
+const _defaultImage = defaultImage;
+export { _defaultImage as defaultImage };
+import { guilds } from './guilds.json';
 var idleDisconnectTimer, aloneDisconnectTimer;
 
 class serverQueue {
@@ -75,26 +67,19 @@ class serverQueue {
 	}
 }
 
-const {
-	EmbedBuilder,
-	ActionRowBuilder,
-	ButtonBuilder,
-	StringSelectMenuBuilder,
-	ButtonStyle,
-	codeBlock
-} = require('discord.js');
-const voice = require('@discordjs/voice');
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, StringSelectMenuBuilder, ButtonStyle, codeBlock } from 'discord.js';
+import { AudioPlayerStatus, joinVoiceChannel, VoiceConnectionStatus, entersState, createAudioPlayer, NoSubscriberBehavior, createAudioResource } from '@discordjs/voice';
 
-const playdl = require('play-dl');
-const youtubeData = JSON.parse(fs.readFileSync('.\\.data\\youtube.data'));
+import { setToken, is_expired, refreshToken, validate, video_info, playlist_info, spotify as _spotify, search, stream } from 'play-dl';
+const youtubeData = JSON.parse(readFileSync('.\\.data\\youtube.data'));
 const cookie = JSON.stringify(youtubeData.cookie).replaceAll(':', '=').replaceAll(',', '; ').replaceAll(/(?:"|{|})/g, '');
-playdl.setToken({
+setToken({
 	youtube: {
 		cookie: cookie
 	}
 });
-const spotifyData = JSON.parse(fs.readFileSync('.\\.data\\spotify.data'));
-playdl.setToken({
+const spotifyData = JSON.parse(readFileSync('.\\.data\\spotify.data'));
+setToken({
 	spotify: {
 		client_id: spotifyData.client_id,
 		client_secret: spotifyData.client_secret,
@@ -143,10 +128,10 @@ client.on(Events.InteractionCreate, async interaction => {
 	const playerState = queue?.player._state.status;
 	switch (action) {
 		case 'pause':
-			if (playerState == voice.AudioPlayerStatus.Playing) {
+			if (playerState == AudioPlayerStatus.Playing) {
 				buttonRow.components[0].data.style = ButtonStyle.Primary;
 				queue.player.pause();
-			} else if (playerState == voice.AudioPlayerStatus.Paused) {
+			} else if (playerState == AudioPlayerStatus.Paused) {
 				buttonRow.components[0].data.style = ButtonStyle.Secondary;
 				queue.player.unpause();
 			}
@@ -270,12 +255,12 @@ client.on(Events.MessageCreate, async message => {
 				global.setTimeout(() => msg.delete(), 5000)
 			});
 
-	if (playdl.is_expired())
-		await playdl.refreshToken();
+	if (is_expired())
+		await refreshToken();
 
-	const type = await playdl.validate(message.content);
+	const type = await validate(message.content);
 	if (type == 'yt_video') {
-		songInfo = await playdl.video_info(message.content);
+		songInfo = await video_info(message.content);
 		result = {
 			title: songInfo.video_details.title,
 			url: songInfo.video_details.url,
@@ -284,7 +269,7 @@ client.on(Events.MessageCreate, async message => {
 		};
 		setQueue(message, result, null);
 	} else if (type == 'yt_playlist') {
-		listInfo = await playdl.playlist_info(message.content, {
+		listInfo = await playlist_info(message.content, {
 			incomplete: true
 		});
 		if (!listInfo)
@@ -303,10 +288,10 @@ client.on(Events.MessageCreate, async message => {
 		};
 		setQueue(message, null, resultList);
 	} else if (type == 'sp_track') {
-		let spotifySong = await playdl.spotify(message.content);
+		let spotifySong = await _spotify(message.content);
 		let artists = [];
 		spotifySong.artists.forEach(a => artists.push(a.name));
-		songInfo = (await playdl.search(`${spotifySong.name} ${artists.join(', ')}`, {
+		songInfo = (await search(`${spotifySong.name} ${artists.join(', ')}`, {
 			type: 'video',
 			limit: 1
 		}))[0];
@@ -318,12 +303,12 @@ client.on(Events.MessageCreate, async message => {
 		};
 		setQueue(message, result, null);
 	} else if (type == 'sp_playlist' || type == 'sp_album') {
-		let spotifyPlaylist = await playdl.spotify(message.content);
+		let spotifyPlaylist = await _spotify(message.content);
 		var promises = [];
 		for (spotifyInfo of spotifyPlaylist.fetched_tracks.get('1')) {
 			let artists = [];
 			spotifyInfo.artists.forEach(a => artists.push(a.name));
-			promises.push(playdl.search(`${spotifyInfo.name} ${artists.join(', ')}`, {
+			promises.push(search(`${spotifyInfo.name} ${artists.join(', ')}`, {
 				type: 'video',
 				limit: 1
 			}));
@@ -341,7 +326,7 @@ client.on(Events.MessageCreate, async message => {
 			setQueue(message, null, resultList);
 		});
 	} else if (type == 'search') {
-		songInfo = (await playdl.search(message.content, {
+		songInfo = (await search(message.content, {
 			type: 'video',
 			limit: 1
 		}))[0];
@@ -377,14 +362,16 @@ const buttonRow = new ActionRowBuilder()
 		.setCustomId('random')
 		.setLabel('\u21C4')
 		.setStyle(ButtonStyle.Secondary));
-exports.buttonRow = buttonRow;
+const _buttonRow = buttonRow;
+export { _buttonRow as buttonRow };
 
 const radioRow = new ActionRowBuilder()
 	.addComponents(new ButtonBuilder()
 		.setCustomId('radio')
 		.setLabel('\u23DA')
 		.setStyle(ButtonStyle.Secondary));
-exports.radioRow = radioRow;
+const _radioRow = radioRow;
+export { _radioRow as radioRow };
 
 const menu = new StringSelectMenuBuilder()
 	.setCustomId('station')
@@ -468,16 +455,16 @@ async function setQueue(message, result, resultList, interactionMessage) {
 
 		queueMap.set(message.guild.id, queue);
 		try {
-			const connection = voice.joinVoiceChannel({
+			const connection = joinVoiceChannel({
 				channelId: message.member.voice.channel.id,
 				guildId: message.guild.id,
 				adapterCreator: message.guild.voiceAdapterCreator
 			});
-			connection.on(voice.VoiceConnectionStatus.Disconnected, async () => {
+			connection.on(VoiceConnectionStatus.Disconnected, async () => {
 				try {
 					await Promise.race([
-						voice.entersState(connection, voice.VoiceConnectionStatus.Signalling, 5000),
-						voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5000)
+						entersState(connection, VoiceConnectionStatus.Signalling, 5000),
+						entersState(connection, VoiceConnectionStatus.Connecting, 5000)
 					]);
 				} catch (error) {
 					global.clearTimeout(aloneDisconnectTimer);
@@ -487,15 +474,15 @@ async function setQueue(message, result, resultList, interactionMessage) {
 				}
 			});
 			queue.connection = connection;
-			const player = voice.createAudioPlayer({
+			const player = createAudioPlayer({
 				behaviors: {
-					noSubscriber: voice.NoSubscriberBehavior.Pause
+					noSubscriber: NoSubscriberBehavior.Pause
 				}
 			});
-			player.on(voice.AudioPlayerStatus.Playing, () => {
+			player.on(AudioPlayerStatus.Playing, () => {
 				global.clearTimeout(idleDisconnectTimer);
 			});
-			player.on(voice.AudioPlayerStatus.Idle, () => {
+			player.on(AudioPlayerStatus.Idle, () => {
 				idleDisconnectTimer = global.setTimeout(() => {
 					if (radioState) radioState = false;
 					queueMap.delete(message.guild.id);
@@ -528,8 +515,8 @@ async function streamSong(guild, song, interactionMessage) {
 	var connection = queue.connection;
 	var player = queue.player;
 
-	let source = await playdl.stream(song.url);
-	const resource = voice.createAudioResource(source.stream, {
+	let source = await stream(song.url);
+	const resource = createAudioResource(source.stream, {
 		inputType: source.type
 	});
 	//const resource = voice.createAudioResource(source.stream, {inputType: source.type, inlineVolume:true});
@@ -538,8 +525,8 @@ async function streamSong(guild, song, interactionMessage) {
 	connection.subscribe(player);
 
 	updateQueue(guild, interactionMessage);
-	if (!player.eventNames().some(e => e == voice.AudioPlayerStatus.Idle))
-		player.on(voice.AudioPlayerStatus.Idle, () => {
+	if (!player.eventNames().some(e => e == AudioPlayerStatus.Idle))
+		player.on(AudioPlayerStatus.Idle, () => {
 			if (queue.repeat == 0) queue.songs.shift();
 			else if (queue.repeat == 1) queue.songs.push(queue.songs.shift());
 			streamSong(guild, queue.songs[0], interactionMessage);
@@ -574,7 +561,7 @@ async function updateQueue(guild, interactionMessage) {
 		footerText += '  |  Looping queue.';
 	else if (queue.repeat == 2)
 		footerText += '  |  Looping current.';
-	if (queue.player?._state.status == voice.AudioPlayerStatus.Paused)
+	if (queue.player?._state.status == AudioPlayerStatus.Paused)
 		footerText += '  |  Paused.';
 
 	var display = new EmbedBuilder()
@@ -609,16 +596,16 @@ async function updateQueue(guild, interactionMessage) {
 async function streamRadio(interaction, station, voiceChannel) {
 	var queue = queueMap.get(interaction.guild.id);
 	if (!queue) {
-		const connection = voice.joinVoiceChannel({
+		const connection = joinVoiceChannel({
 			channelId: interaction.member.voice.channel.id,
 			guildId: interaction.guild.id,
 			adapterCreator: interaction.guild.voiceAdapterCreator
 		});
-		connection.on(voice.VoiceConnectionStatus.Disconnected, async () => {
+		connection.on(VoiceConnectionStatus.Disconnected, async () => {
 			try {
 				await Promise.race([
-					voice.entersState(connection, voice.VoiceConnectionStatus.Signalling, 5000),
-					voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5000)
+					entersState(connection, VoiceConnectionStatus.Signalling, 5000),
+					entersState(connection, VoiceConnectionStatus.Connecting, 5000)
 				]);
 			} catch (error) {
 				global.clearTimeout(aloneDisconnectTimer);
@@ -626,15 +613,15 @@ async function streamRadio(interaction, station, voiceChannel) {
 				updateQueue(interaction.guild, interaction.message);
 			}
 		});
-		const player = voice.createAudioPlayer({
+		const player = createAudioPlayer({
 			behaviors: {
-				noSubscriber: voice.NoSubscriberBehavior.Pause
+				noSubscriber: NoSubscriberBehavior.Pause
 			}
 		});
-		player.on(voice.AudioPlayerStatus.Playing, () => {
+		player.on(AudioPlayerStatus.Playing, () => {
 			global.clearTimeout(idleDisconnectTimer);
 		});
-		player.on(voice.AudioPlayerStatus.Idle, () => {
+		player.on(AudioPlayerStatus.Idle, () => {
 			idleDisconnectTimer = global.setTimeout(() => {
 				queueMap.delete(interaction.guild.id);
 				updateQueue(interaction.guild, interaction.message);
@@ -657,7 +644,7 @@ async function streamRadio(interaction, station, voiceChannel) {
 	}
 	var connection = queue.connection;
 	var player = queue.player;
-	const resource = voice.createAudioResource(station);
+	const resource = createAudioResource(station);
 	await player.play(resource);
 	connection.subscribe(player);
 	updateRadio(interaction.message, station);

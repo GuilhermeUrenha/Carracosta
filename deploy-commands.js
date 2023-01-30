@@ -1,9 +1,9 @@
-const { REST, Routes } = require('discord.js');
-const { token, clientId, guildId } = require('./config.json');
-const fs = require('node:fs');
+import { REST, Routes } from 'discord.js';
+import { token, clientId, guildId } from './config.json';
+import { readdirSync } from 'node:fs';
 
 const commands = [];
-const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
+const commandFiles = readdirSync('./commands').filter(file => file.endsWith('.js'));
 for(const file of commandFiles){
 	const command = require(`./commands/${file}`);
 	commands.push(command.data.toJSON());
