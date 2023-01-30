@@ -224,6 +224,7 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 			if (voiceChannel.members.filter(m => !m.user.bot).size) return;
 			if (connection) connection.destroy();
 			if (radioState) radioState = false;
+			global.clearTimeout(idleDisconnectTimer);
 			queueMap.delete(voiceChannel.guildId);
 			updateQueue(voiceChannel.guild, await getMessage(voiceChannel.guild));
 		}, 20 * 1000);
