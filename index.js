@@ -218,16 +218,20 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 	var voiceChannel = queue?.voiceChannel;
 	var connection = queue?.connection;
 
-	if (!voiceChannel || voiceChannel.id != oldState.channelId) return;
+	if (!voiceChannel || voiceChannel.id != (oldState.channelId || newState.channelId)) return;
 	if (oldState.channelId && !newState.channelId)
 		aloneDisconnectTimer = global.setTimeout(async () => {
 			if (voiceChannel.members.filter(m => !m.user.bot).size) return;
 			if (connection) connection.destroy();
 			if (radioState) radioState = false;
-			global.clearTimeout(idleDisconnectTimer);
+			//global.clearTimeout(idleDisconnectTimer);
 			queueMap.delete(voiceChannel.guildId);
 			updateQueue(voiceChannel.guild, await getMessage(voiceChannel.guild));
-		}, 20 * 1000);
+		}, 5 * 1000); //20
+	else if (!oldState.channelId && newState.channelId) {
+		global.clearInterval(idleDisconnectTimer);
+		global.clearInterval(aloneDisconnectTimer);
+	}
 });
 
 // Message
@@ -498,7 +502,7 @@ async function setQueue(message, result, resultList, interactionMessage) {
 					queueMap.delete(message.guild.id);
 					updateQueue(message.guild, interactionMessage);
 					if (connection) connection.destroy();
-				}, 600 * 1000);
+				}, 10 * 1000); //600
 			});
 			queue.player = player;
 			streamSong(message.guild, queue.songs[0], interactionMessage);
@@ -636,7 +640,7 @@ async function streamRadio(interaction, station, voiceChannel) {
 				queueMap.delete(interaction.guild.id);
 				updateQueue(interaction.guild, interaction.message);
 				if (connection) connection.destroy();
-			}, 600 * 1000);
+			}, 10 * 1000); //600
 		});
 		queue = new serverQueue(
 			true,
