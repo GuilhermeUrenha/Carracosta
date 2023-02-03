@@ -1,9 +1,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Client, Collection, GatewayIntentBits, Events, ActivityType } from 'discord.js';
+import Discord, { Client, Collection, GatewayIntentBits, Events, ActivityType, Channel, VoiceChannel, SlashCommandBuilder } from 'discord.js';
 import { token, clientId } from './config.json';
 
-const client = new Client({
+const client:Client = new Client({
 	intents: [
 		GatewayIntentBits.Guilds,
 		GatewayIntentBits.GuildMessages,
@@ -54,7 +54,7 @@ import { guilds } from './guilds.json';
 var idleDisconnectTimer = new Map(), aloneDisconnectTimer = new Map();
 
 class serverQueue {
-	constructor(radio, voiceChannel, connection, player, repeat, songs) {
+	constructor(radio:Boolean, voiceChannel:VoiceChannel, connection:VoiceConnection, player:AudioPlayer, repeat:Number, songs:Array) {
 		this.radio = radio;
 		this.voiceChannel = voiceChannel;
 		this.connection = connection;
@@ -68,7 +68,7 @@ class serverQueue {
 }
 
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, StringSelectMenuBuilder, ButtonStyle, codeBlock } from 'discord.js';
-import { AudioPlayerStatus, joinVoiceChannel, VoiceConnectionStatus, entersState, createAudioPlayer, NoSubscriberBehavior, createAudioResource } from '@discordjs/voice';
+import { AudioPlayerStatus, joinVoiceChannel, VoiceConnectionStatus, entersState, createAudioPlayer, NoSubscriberBehavior, createAudioResource, VoiceConnection, AudioPlayer } from '@discordjs/voice';
 
 import { setToken, is_expired, refreshToken, validate, video_info, playlist_info, spotify as _spotify, search, stream } from 'play-dl';
 const youtubeData = JSON.parse(readFileSync('.\\.data\\youtube.data'));
@@ -115,7 +115,7 @@ client.on(Events.InteractionCreate, async interaction => {
 	var queue = queueMap.get(interaction.guildId);
 	if (!queue && action != 'radio') return interaction.deferUpdate().catch(console.error);
 
-	var voiceChannel;
+	var voiceChannel:VoiceChannel;
 	if (interaction?.member?.voice?.channel)
 		voiceChannel = interaction.member.voice.channel;
 	else
