@@ -59,7 +59,7 @@ const defaultImage = 'https://media.discordapp.net/attachments/46532924751137996
 	radioImage = 'https://media.discordapp.net/attachments/465329247511379969/1057745459315228694/eboy.jpg';
 exports.defaultImage = defaultImage;
 const guilds = require('./guilds.json').guilds;
-var idleDisconnectTimer, aloneDisconnectTimer;
+var idleDisconnectTimer = new Map(), aloneDisconnectTimer = new Map();
 
 class serverQueue {
 	constructor(radio, voiceChannel, connection, player, repeat, songs) {
@@ -220,7 +220,7 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 
 	if (!voiceChannel || voiceChannel.id != (oldState.channelId || newState.channelId)) return;
 	if (oldState.channelId && !newState.channelId)
-		aloneDisconnectTimer = global.setTimeout(async () => {
+		aloneDisconnectTimer[oldState.guild.id] = global.setTimeout(async () => {
 			if (voiceChannel.members.filter(m => !m.user.bot).size) return;
 			if (connection) connection.destroy();
 			if (radioState) radioState = false;
@@ -228,8 +228,8 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 			updateQueue(voiceChannel.guild, await getMessage(voiceChannel.guild));
 		}, 20 * 1000);//20
 	else if (!oldState.channelId && newState.channelId) {
-		global.clearInterval(idleDisconnectTimer);
-		global.clearInterval(aloneDisconnectTimer);
+		global.clearInterval(idleDisconnectTimer[oldState.guild.id]);
+		global.clearInterval(aloneDisconnectTimer[oldState.guild.id]);
 	}
 });
 
@@ -459,7 +459,6 @@ async function setQueue(message, result, resultList, interactionMessage) {
 			0,
 			[]
 		);
-
 		if (!result)
 			for (r of resultList)
 				queue.songs.push(r);
@@ -480,7 +479,7 @@ async function setQueue(message, result, resultList, interactionMessage) {
 						voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5000)
 					]);
 				} catch (error) {
-					global.clearTimeout(aloneDisconnectTimer);
+					global.clearTimeout(aloneDisconnectTimer[message.guild.id]);
 					queueMap.delete(message.guild.id);
 					updateQueue(message.guild, interactionMessage);
 					connection.destroy();
@@ -493,10 +492,10 @@ async function setQueue(message, result, resultList, interactionMessage) {
 				}
 			});
 			player.on(voice.AudioPlayerStatus.Playing, () => {
-				global.clearTimeout(idleDisconnectTimer);
+				global.clearTimeout(idleDisconnectTimer[message.guild.id]);
 			});
 			player.on(voice.AudioPlayerStatus.Idle, () => {
-				idleDisconnectTimer = global.setTimeout(() => {
+				idleDisconnectTimer[message.guild.id] = global.setTimeout(() => {
 					if (radioState) radioState = false;
 					queueMap.delete(message.guild.id);
 					updateQueue(message.guild, interactionMessage);
@@ -621,7 +620,7 @@ async function streamRadio(interaction, station, voiceChannel) {
 					voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5000)
 				]);
 			} catch (error) {
-				global.clearTimeout(aloneDisconnectTimer);
+				global.clearTimeout(aloneDisconnectTimer[interaction.guild.id]);
 				queueMap.delete(interaction.guild.id);
 				updateQueue(interaction.guild, interaction.message);
 			}
@@ -632,10 +631,10 @@ async function streamRadio(interaction, station, voiceChannel) {
 			}
 		});
 		player.on(voice.AudioPlayerStatus.Playing, () => {
-			global.clearTimeout(idleDisconnectTimer);
+			global.clearTimeout(idleDisconnectTimer[interaction.guild.id]);
 		});
 		player.on(voice.AudioPlayerStatus.Idle, () => {
-			idleDisconnectTimer = global.setTimeout(() => {
+			idleDisconnectTimer[interaction.guild.id] = global.setTimeout(() => {
 				queueMap.delete(interaction.guild.id);
 				updateQueue(interaction.guild, interaction.message);
 				if (connection) connection.destroy();
