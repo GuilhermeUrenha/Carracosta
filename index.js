@@ -480,6 +480,7 @@ async function setQueue(message, result, resultList, interactionMessage) {
 					]);
 				} catch (error) {
 					global.clearTimeout(aloneDisconnectTimer[message.guild.id]);
+					delete aloneDisconnectTimer[message.guild.id]
 					queueMap.delete(message.guild.id);
 					updateQueue(message.guild, interactionMessage);
 					connection.destroy();
@@ -493,6 +494,7 @@ async function setQueue(message, result, resultList, interactionMessage) {
 			});
 			player.on(voice.AudioPlayerStatus.Playing, () => {
 				global.clearTimeout(idleDisconnectTimer[message.guild.id]);
+				delete idleDisconnectTimer[message.guild.id]
 			});
 			player.on(voice.AudioPlayerStatus.Idle, () => {
 				idleDisconnectTimer[message.guild.id] = global.setTimeout(() => {
@@ -621,6 +623,7 @@ async function streamRadio(interaction, station, voiceChannel) {
 				]);
 			} catch (error) {
 				global.clearTimeout(aloneDisconnectTimer[interaction.guild.id]);
+				delete aloneDisconnectTimer[interaction.guild.id];
 				queueMap.delete(interaction.guild.id);
 				updateQueue(interaction.guild, interaction.message);
 			}
@@ -632,6 +635,7 @@ async function streamRadio(interaction, station, voiceChannel) {
 		});
 		player.on(voice.AudioPlayerStatus.Playing, () => {
 			global.clearTimeout(idleDisconnectTimer[interaction.guild.id]);
+			delete idleDisconnectTimer[interaction.guild.id];
 		});
 		player.on(voice.AudioPlayerStatus.Idle, () => {
 			idleDisconnectTimer[interaction.guild.id] = global.setTimeout(() => {
