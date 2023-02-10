@@ -13,7 +13,7 @@ module.exports = {
 			.setDescription('Code to execute.')
 			.setRequired(true)),
 	async execute(interaction) {
-		//if(interaction.user.id != require('../config.json').ownerId || interaction.guild.ownerId) 
+		//if(interaction.user.id != process.env.ownerId || interaction.guild.ownerId)
 		//  return interaction.reply({content:codeBlock('fix', '[Owner perms.]'), ephemeral:true});
 		try {
 			var code = interaction.options.getString('code');

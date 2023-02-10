@@ -1,4 +1,4 @@
-/config.json
-/guilds.json
-/.data
-/node_modules
+.env
+.data
+guilds.json
+node_modules

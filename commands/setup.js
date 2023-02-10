@@ -14,10 +14,10 @@ module.exports = {
 		.setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
 	async execute(interaction) {
 		const file = '.\\guilds.json';
-		const { 
-			defaultImage, 
-			buttonRow, 
-			radioRow 
+		const {
+			defaultImage,
+			buttonRow,
+			radioRow
 		} = require('../index.js');
 		var guilds = require('../guilds.json').guilds;
 		var messageId, channelId, message, channel;
@@ -61,7 +61,7 @@ module.exports = {
 						name: 'carracosta',
 						type: ChannelType.GuildText,
 						reason: 'Bot channel setup.',
-						topic: `<@${require('../config.json').clientId}>`,
+						topic: `<@${process.env.clientId}>`,
 						position: 0
 					}).catch(console.error);
 				}
@@ -86,7 +86,7 @@ module.exports = {
 				name: 'carracosta',
 				type: ChannelType.GuildText,
 				reason: 'Bot channel setup.',
-				topic: `<@${require('../config.json').clientId}>`,
+				topic: `<@${process.env.clientId}>`,
 				position: 0
 			}).catch(console.error);
 			message = await channel.send({

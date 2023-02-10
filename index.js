@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+require('dotenv').config();
 const {
 	Client,
 	Collection,
@@ -7,10 +8,6 @@ const {
 	Events,
 	ActivityType
 } = require('discord.js');
-const {
-	token,
-	clientId
-} = require('./config.json');
 
 const client = new Client({
 	intents: [
@@ -23,7 +20,7 @@ const client = new Client({
 });
 
 try {
-	client.login(token);
+	client.login(process.env.token);
 } catch (error) {
 	console.error(error);
 }
@@ -245,7 +242,7 @@ client.on(Events.MessageCreate, async message => {
 	if (!channelMatch) return;
 
 	if (message?.author.bot) return;
-	if (message?.member?.user?.id == clientId) return;
+	if (message?.member?.user?.id == process.env.clientId) return;
 
 	message.delete();
 
