@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 require('dotenv').config();
+
 const {
 	Client,
 	Collection,
@@ -148,25 +149,25 @@ client.on(Events.InteractionCreate, async interaction => {
 				queue.player.unpause();
 			}
 			updateQueue(interaction.guild, interaction.message);
-		break;
+			break;
 
 		case 'skip':
 			if (queue.repeat == 0) queue.songs.shift();
 			else if (queue.repeat == 1) queue.songs.push(queue.songs.shift());
 			streamSong(interaction.guild, queue.songs[0], interaction.message);
-		break;
+			break;
 
 		case 'stop':
 			queue.songs = [];
 			streamSong(interaction.guild, null, interaction.message);
-		break;
+			break;
 
 		case 'repeat':
 			if (queue.repeat == 0) queue.repeat = 1;
 			else if (queue.repeat == 1) queue.repeat = 2;
 			else if (queue.repeat == 2) queue.repeat = 0;
 			updateQueue(interaction.guild, interaction.message);
-		break
+			break
 
 		case 'random':
 			if (!queue?.songs.length) break;
@@ -185,11 +186,11 @@ client.on(Events.InteractionCreate, async interaction => {
 				}) => value);
 			queue.songs = [queue.songs.shift(), shuffle].flat();
 			updateQueue(interaction.guild, interaction.message);
-		break;
+			break;
 
 		case 'radio':
 			updateRadio(interaction.message);
-		break;
+			break;
 
 		default:
 			return;
@@ -355,25 +356,25 @@ client.on(Events.MessageCreate, async message => {
 const buttonRow = new ActionRowBuilder()
 	.addComponents(
 		new ButtonBuilder()
-		.setCustomId('pause')
-		.setLabel('\u23f5')
-		.setStyle(ButtonStyle.Secondary),
+			.setCustomId('pause')
+			.setLabel('\u23f5')
+			.setStyle(ButtonStyle.Secondary),
 		new ButtonBuilder()
-		.setCustomId('skip')
-		.setLabel('\u23ED')
-		.setStyle(ButtonStyle.Secondary),
+			.setCustomId('skip')
+			.setLabel('\u23ED')
+			.setStyle(ButtonStyle.Secondary),
 		new ButtonBuilder()
-		.setCustomId('stop')
-		.setLabel('\u23f9')
-		.setStyle(ButtonStyle.Secondary),
+			.setCustomId('stop')
+			.setLabel('\u23f9')
+			.setStyle(ButtonStyle.Secondary),
 		new ButtonBuilder()
-		.setCustomId('repeat')
-		.setLabel('\u21BB')
-		.setStyle(ButtonStyle.Secondary),
+			.setCustomId('repeat')
+			.setLabel('\u21BB')
+			.setStyle(ButtonStyle.Secondary),
 		new ButtonBuilder()
-		.setCustomId('random')
-		.setLabel('\u21C4')
-		.setStyle(ButtonStyle.Secondary));
+			.setCustomId('random')
+			.setLabel('\u21C4')
+			.setStyle(ButtonStyle.Secondary));
 exports.buttonRow = buttonRow;
 
 const radioRow = new ActionRowBuilder()
@@ -505,14 +506,14 @@ async function setQueue(message, result, resultList, interactionMessage) {
 			streamSong(message.guild, queue.songs[0], interactionMessage);
 		} catch (err) {
 			queueMap.delete(message.guild.id);
-			return message.channel.send(`${codeBlock('ml',err)}`);
+			return message.channel.send(`${codeBlock('ml', err)}`);
 		}
 	} else
-	if (!result)
-		for (res of resultList)
-			queue.songs.push(res);
-	else
-		queue.songs.push(result);
+		if (!result)
+			for (res of resultList)
+				queue.songs.push(res);
+		else
+			queue.songs.push(result);
 	updateQueue(message.guild, interactionMessage);
 }
 
