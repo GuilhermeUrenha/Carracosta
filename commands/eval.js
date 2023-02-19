@@ -3,6 +3,7 @@ const {
 	codeBlock
 } = require('discord.js');
 const util = require('util');
+require('dotenv').config();
 
 module.exports = {
 	data: new SlashCommandBuilder()
@@ -13,8 +14,8 @@ module.exports = {
 			.setDescription('Code to execute.')
 			.setRequired(true)),
 	async execute(interaction) {
-		//if(interaction.user.id != process.env.ownerId || interaction.guild.ownerId)
-		//  return interaction.reply({content:codeBlock('fix', '[Owner perms.]'), ephemeral:true});
+		if(interaction.user.id != (process.env.ownerId || interaction.guild.ownerId))
+		  	return interaction.reply({content:codeBlock('fix', '[Owner perms.]'), ephemeral:true});
 		try {
 			var code = interaction.options.getString('code');
 			var evaled = global.eval(String(code));
