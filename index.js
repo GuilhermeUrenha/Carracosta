@@ -220,8 +220,10 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 	if (oldState.channelId && !newState.channelId)
 		aloneDisconnectTimer[oldState.guild.id] = global.setTimeout(async () => {
 			if (voiceChannel.members.filter(m => !m.user.bot).size) return;
-			if (connection) connection.destroy();
 			if (radioState) radioState = false;
+			try {
+				if (connection) connection.destroy();
+			} catch (err) { }
 			queueMap.delete(voiceChannel.guildId);
 			updateQueue(voiceChannel.guild, await getMessage(voiceChannel.guild));
 		}, 20 * 1000);//20
@@ -479,9 +481,11 @@ async function setQueue(message, result, resultList, interactionMessage) {
 				} catch (error) {
 					global.clearTimeout(aloneDisconnectTimer[message.guild.id]);
 					delete aloneDisconnectTimer[message.guild.id]
+					try {
+						if (connection) connection.destroy();
+					} catch (err) { }
 					queueMap.delete(message.guild.id);
 					updateQueue(message.guild, interactionMessage);
-					connection.destroy();
 				}
 			});
 			queue.connection = connection;
@@ -497,9 +501,11 @@ async function setQueue(message, result, resultList, interactionMessage) {
 			player.on(voice.AudioPlayerStatus.Idle, () => {
 				idleDisconnectTimer[message.guild.id] = global.setTimeout(() => {
 					if (radioState) radioState = false;
+					try {
+						if (connection) connection.destroy();
+					} catch (err) { }
 					queueMap.delete(message.guild.id);
 					updateQueue(message.guild, interactionMessage);
-					if (connection) connection.destroy();
 				}, 600 * 1000);//600
 			});
 			queue.player = player;
@@ -637,9 +643,12 @@ async function streamRadio(interaction, station, voiceChannel) {
 		});
 		player.on(voice.AudioPlayerStatus.Idle, () => {
 			idleDisconnectTimer[interaction.guild.id] = global.setTimeout(() => {
+				if (radioState) radioState = false;
+				try {
+					if (connection) connection.destroy();
+				} catch (err) { }
 				queueMap.delete(interaction.guild.id);
 				updateQueue(interaction.guild, interaction.message);
-				if (connection) connection.destroy();
 			}, 600 * 1000);//600
 		});
 		queue = new serverQueue(
