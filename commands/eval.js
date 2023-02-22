@@ -18,7 +18,7 @@ module.exports = {
 		  	return interaction.reply({content:codeBlock('fix', '[Owner perms.]'), ephemeral:true});
 		try {
 			var code = interaction.options.getString('code');
-			var evaled = global.eval(String(code));
+			var evaled = eval(String(code)); //global.eval
 			if (util.inspect(evaled).length > 1900)
 				evaled = util.inspect(evaled).substring(0, 1950) + '\n[...]';
 			else

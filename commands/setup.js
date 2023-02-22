@@ -31,8 +31,8 @@ module.exports = {
 				iconURL: interaction.client.user.displayAvatarURL()
 			});
 
-		let textChannel = 0;
-		var channels = interaction.guild.channels.cache.filter(channel => channel.type == textChannel);
+		const textChannel = 0;
+		const channels = interaction.guild.channels.cache.filter(channel => channel.type == textChannel);
 		for (g of guilds) {
 			if (interaction.guild.id == g.guildId) {
 				channelId = g.channelId;
@@ -77,10 +77,8 @@ module.exports = {
 				});
 				fs.writeFileSync(file, JSON.stringify(guilds, null, 4), 'utf8');
 			}
-			if (!channel)
-				interaction.editReply(`\`[Erro.]\``);
-			else
-				interaction.editReply(`<#${channel.id}>`);
+			if (channel) return interaction.editReply(`<#${channel.id}>`);
+			interaction.editReply(`\`[Erro.]\``);
 		} else {
 			channel = await interaction.guild.channels.create({
 				name: 'carracosta',
