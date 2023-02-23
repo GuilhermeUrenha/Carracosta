@@ -40,7 +40,7 @@ for (const file of commandFiles) {
 }
 
 client.once(Events.ClientReady, client => {
-	console.log('[Ready.][M]');
+	process.stdout.write('[Ready.][M]');
 	let totalServers = client.guilds.cache.size;
 	client.user.setPresence({
 		activities: [{
