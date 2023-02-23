@@ -82,7 +82,16 @@ const voice = require('@discordjs/voice');
 
 const playdl = require('play-dl');
 const youtubeData = JSON.parse(fs.readFileSync('.\\.data\\youtube.data'));
-const cookie = JSON.stringify(youtubeData.cookie).replaceAll(':', '=').replaceAll(',', '; ').replaceAll(/(?:"|{|})/g, '');
+const cookie = JSON.stringify(youtubeData.cookie).replaceAll(/[:,"]|{|}/g, (match) => {
+	switch (match) {
+		case ':': return '=';
+		case ',': return '; ';
+		case '{':
+		case '}':
+		case '"': return '';
+		default: return match;
+	}
+});
 playdl.setToken({
 	youtube: {
 		cookie: cookie
