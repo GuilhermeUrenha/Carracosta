@@ -81,23 +81,20 @@ const {
 const voice = require('@discordjs/voice');
 
 const playdl = require('play-dl');
-const youtubeData = JSON.parse(fs.readFileSync('.\\.data\\youtube.data'));
+const youtubePath = path.join(__dirname, '.data\\youtube.data');
+const youtubeData = JSON.parse(fs.readFileSync(youtubePath));
 const cookie = JSON.stringify(youtubeData.cookie).replaceAll(/[:,"]|{|}/g, (match) => {
-	switch (match) {
-		case ':': return '=';
-		case ',': return '; ';
-		case '{':
-		case '}':
-		case '"': return '';
-		default: return match;
-	}
+	if (match == ':') return '=';
+	else if (match == ',') return '; ';
+	return '';
 });
 playdl.setToken({
 	youtube: {
 		cookie: cookie
 	}
 });
-const spotifyData = JSON.parse(fs.readFileSync('.\\.data\\spotify.data'));
+const spotifyPath = path.join(__dirname, '.data\\spotify.data');
+const spotifyData = JSON.parse(fs.readFileSync(spotifyPath));
 playdl.setToken({
 	spotify: {
 		client_id: spotifyData.client_id,
