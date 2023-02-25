@@ -60,7 +60,7 @@ const guilds = new Map(Object.entries(require('./guilds.json')));
 const idleDisconnectTimer = new Map(), aloneDisconnectTimer = new Map();
 
 class serverQueue {
-	constructor(voiceChannel, radio = false, radioMenu = false, connection = null, player = null, repeat = 0, songs = []) {
+	constructor(voiceChannel = undefined, radio = false, radioMenu = false, connection = null, player = null, repeat = 0, songs = []) {
 		this.voiceChannel = voiceChannel;
 		this.radio = radio;
 		this.radioMenu = radioMenu;
@@ -140,9 +140,9 @@ client.on(Events.InteractionCreate, async interaction => {
 	if (!permissions.has('CONNECT') || !permissions.has('SPEAK'))
 		return interaction.deferUpdate().catch(console.error);
 
-	const playerState = queue?.player._state.status;
 	switch (action) {
 		case 'pause':
+			const playerState = queue.player._state.status;
 			if (playerState == voice.AudioPlayerStatus.Playing) {
 				buttonRow.components[0].data.style = ButtonStyle.Primary;
 				queue.player.pause();
@@ -205,8 +205,8 @@ client.on(Events.InteractionCreate, async interaction => {
 // Connect / Disconnect
 client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 	const queue = queueMap.get(oldState.guild.id)
-	const voiceChannel = queue.voiceChannel;
-	const connection = queue.connection;
+	const voiceChannel = queue?.voiceChannel;
+	const connection = queue?.connection;
 
 	if (!voiceChannel || voiceChannel.id != (oldState.channelId || newState.channelId)) return;
 	if (oldState.channelId && !newState.channelId)
@@ -638,6 +638,7 @@ async function streamRadio(interaction, station, voiceChannel) {
 
 async function updateRadio(interactionMessage, station) {
 	const queue = queueMap.get(interactionMessage.guild.id) ?? new serverQueue();
+	queueMap.set(interactionMessage.guild.id, queue);
 	if (station) {
 		var stationName, stationUrl;
 		queue.radio = true;
@@ -679,8 +680,7 @@ async function updateRadio(interactionMessage, station) {
 				embeds: [display],
 				components: [buttonRow, radioRow, stationRow]
 			});
-	}
-	if (!queue.radioMenu) {
+	} else if (!queue.radioMenu) {
 		queue.radioMenu = true;
 		buttonRow.components.forEach(component => component.data.disabled = true);
 		radioRow.components[0].data.style = ButtonStyle.Primary;
@@ -688,8 +688,7 @@ async function updateRadio(interactionMessage, station) {
 			return interactionMessage.edit({
 				components: [buttonRow, radioRow, stationRow]
 			});
-	}
-	if (queue.radioMenu && !station) {
+	} else if (queue.radioMenu && !station) {
 		queue.radioMenu = false;
 		buttonRow.components.forEach(component => component.data.disabled = false);
 		radioRow.components[0].data.style = ButtonStyle.Secondary;
