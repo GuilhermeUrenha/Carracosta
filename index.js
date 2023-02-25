@@ -227,7 +227,6 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 
 // Message
 client.on(Events.MessageCreate, async message => {
-	console.log(queueMap);
 	var songInfo, listInfo, resultItem, result, resultList = [];
 
 	if (message?.author.bot) return;
