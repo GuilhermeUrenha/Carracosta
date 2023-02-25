@@ -140,7 +140,7 @@ client.on(Events.InteractionCreate, async interaction => {
 	if (!permissions.has('CONNECT') || !permissions.has('SPEAK'))
 		return interaction.deferUpdate().catch(console.error);
 
-	const playerState = queue.player?._state.status;
+	const playerState = queue?.player._state.status;
 	switch (action) {
 		case 'pause':
 			if (playerState == voice.AudioPlayerStatus.Playing) {
@@ -236,7 +236,7 @@ client.on(Events.MessageCreate, async message => {
 	if (guild.channelId != message.channelId) return;
 	message.delete();
 
-	if (queueMap.get(message.guild.id).radio)
+	if (queueMap.get(message.guild.id)?.radio)
 		return message.channel.send(`<@${message.member.id}> Radio On.`)
 			.then(msg => {
 				global.setTimeout(() => msg.delete(), 5000)
@@ -637,7 +637,7 @@ async function streamRadio(interaction, station, voiceChannel) {
 }
 
 async function updateRadio(interactionMessage, station) {
-	const queue = queueMap.get(interactionMessage.guild.id);
+	const queue = queueMap.get(interactionMessage.guild.id) ?? new serverQueue();
 	if (station) {
 		var stationName, stationUrl;
 		queue.radio = true;
