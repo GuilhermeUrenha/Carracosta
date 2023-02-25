@@ -13,14 +13,14 @@ module.exports = {
 		.setDMPermission(false)
 		.setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
 	async execute(interaction) {
-		const file = '.\\guilds.json';
+		const file = '..\\guilds.json';
 		const {
 			defaultImage,
 			buttonRow,
 			radioRow
 		} = require('../index.js');
-		var guilds = require('../guilds.json').guilds;
-		var messageId, channelId, message, channel;
+		const guilds = new Map(Object.entries(require('../guilds.json')));
+		var message, channel;
 
 		const setup = new EmbedBuilder()
 			.setColor(interaction.guild.members.me.displayColor)
@@ -33,14 +33,13 @@ module.exports = {
 
 		const textChannel = 0;
 		const channels = interaction.guild.channels.cache.filter(channel => channel.type == textChannel);
-		for (g of guilds) {
-			if (interaction.guild.id == g.guildId) {
-				channelId = g.channelId;
-				messageId = g.messageId;
-			}
-		}
+
+		const guild = guilds.get(interaction.guild.id);
+		const channelId = guild.channelId;
+		const messageId = guild.messageId;
+
 		if (messageId) {
-			interaction.deferReply();
+			await interaction.deferReply();
 			channel = await channels.get(channelId);
 			if (channel) {
 				let messages = await channel.messages.fetch({
@@ -51,10 +50,8 @@ module.exports = {
 			if (message)
 				channel = message.channel;
 			else {
-				for (g in guilds)
-					if (guilds[g].guildId == interaction.guild.id)
-						delete guilds[g];
-				guilds = guilds.filter(g => g);
+				if (guilds.has(interaction.guild.id))
+					guilds.delete(interaction.guild.id);
 
 				if (!channel) {
 					channel = await interaction.guild.channels.create({
@@ -70,12 +67,11 @@ module.exports = {
 					embeds: [setup],
 					components: [buttonRow, radioRow]
 				});
-				guilds.push({
-					guildId: message.guildId,
+				guilds.set(message.guildId, {
 					channelId: channel.id,
 					messageId: message.id
 				});
-				fs.writeFileSync(file, JSON.stringify(guilds, null, 4), 'utf8');
+				fs.writeFileSync(file, JSON.stringify(Object.fromEntries(guilds), null, 4), 'utf8');
 			}
 			if (channel) return interaction.editReply(`<#${channel.id}>`);
 			interaction.editReply(`\`[Erro.]\``);
@@ -92,13 +88,12 @@ module.exports = {
 				embeds: [setup],
 				components: [buttonRow, radioRow]
 			});
-			guilds.push({
-				guildId: message.guildId,
+			guilds.set(message.guildId, {
 				channelId: channel.id,
 				messageId: message.id
 			});
-			fs.writeFileSync(file, JSON.stringify(guilds, null, 4), 'utf8');
-			interaction.reply({
+			fs.writeFileSync(file, JSON.stringify(Object.fromEntries(guilds), null, 4), 'utf8');
+			interaction.editReply({
 				content: `<#${channel.id}>`
 			});
 		}
