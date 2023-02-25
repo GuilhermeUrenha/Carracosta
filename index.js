@@ -576,17 +576,19 @@ async function updateQueue(guild, interactionMessage) {
 		buttonRow.components.forEach(component => component.data.disabled = false);
 		radioRow.components[0].data.style = ButtonStyle.Secondary;
 		menu.setPlaceholder('No station selected.');
-		return interactionMessage.edit({
+		if (interactionMessage)
+			return interactionMessage.edit({
+				content: queueText,
+				embeds: [display],
+				components: [buttonRow, radioRow]
+			});
+	}
+	if (interactionMessage)
+		interactionMessage.edit({
 			content: queueText,
 			embeds: [display],
 			components: [buttonRow, radioRow]
 		});
-	}
-	interactionMessage.edit({
-		content: queueText,
-		embeds: [display],
-		components: [buttonRow, radioRow]
-	});
 }
 
 async function streamRadio(interaction, station, voiceChannel) {
@@ -677,19 +679,21 @@ async function updateRadio(interactionMessage, station) {
 				text: 'Thanks for listening.',
 				iconURL: client.user.displayAvatarURL()
 			});
-		return interactionMessage.edit({
-			content: queueText,
-			embeds: [display],
-			components: [buttonRow, radioRow, stationRow]
-		});
+		if (interactionMessage)
+			return interactionMessage.edit({
+				content: queueText,
+				embeds: [display],
+				components: [buttonRow, radioRow, stationRow]
+			});
 	}
 	if (!radioState) {
 		radioState = true;
 		buttonRow.components.forEach(component => component.data.disabled = true);
 		radioRow.components[0].data.style = ButtonStyle.Primary;
-		return interactionMessage.edit({
-			components: [buttonRow, radioRow, stationRow]
-		});
+		if (interactionMessage)
+			return interactionMessage.edit({
+				components: [buttonRow, radioRow, stationRow]
+			});
 	}
 	if (radioState && !station) {
 		radioState = false;
@@ -713,26 +717,28 @@ async function updateRadio(interactionMessage, station) {
 				return streamSong(interactionMessage.guild, queue.songs[0], interactionMessage);
 			queueMap.delete(interactionMessage.guild.id);
 			updateQueue(interactionMessage.guild, interactionMessage);
-			return interactionMessage.edit({
-				embeds: [display],
+			if (interactionMessage)
+				return interactionMessage.edit({
+					embeds: [display],
+					components: [buttonRow, radioRow]
+				});
+		}
+		if (interactionMessage)
+			interactionMessage.edit({
 				components: [buttonRow, radioRow]
 			});
-		}
-		interactionMessage.edit({
-			components: [buttonRow, radioRow]
-		});
 	}
 }
 
 async function resetSetups(client) {
 	var message;
 	for (g of guilds) {
-		let textChannel = 0
+		const textChannel = 0
 		const guild = await client.guilds.fetch(g.guildId);
 		const channels = guild.channels.cache.filter(channel => channel.type == textChannel);
 		const channel = await channels.get(g.channelId);
 		if (channel) {
-			let messages = await channel.messages.fetch({
+			const messages = await channel.messages.fetch({
 				limit: 5
 			});
 			message = await messages.get(g.messageId);
@@ -745,6 +751,7 @@ async function resetSetups(client) {
 				text: `0 songs in queue.`,
 				iconURL: client.user.displayAvatarURL()
 			});
+		if (!message) continue;
 		await message.edit({
 			content: 'Q__ueue__\n\u2800',
 			embeds: [display],
@@ -761,12 +768,12 @@ async function getMessage(guild) {
 			var messageId = g.messageId;
 			break;
 		}
-	let channel = await guild.channels.cache.get(channelId);
+	const channel = await guild.channels.cache.get(channelId);
 	if (channel) {
-		let messages = await channel.messages.fetch({
+		const messages = await channel.messages.fetch({
 			limit: 5
 		});
 		message = await messages.get(messageId);
 	}
-	return message;
+	if (message) return message;
 }
