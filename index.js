@@ -285,13 +285,13 @@ client.on(Events.MessageCreate, async message => {
 				thumb: songInfo.thumbnails.findLast(t => t).url
 			};
 			resultList.push(resultItem);
-		};
+		}
 		setQueue(message, null, resultList);
 	} else if (type == 'sp_track') {
 		const spotifySong = await playdl.spotify(message.content);
 		let artists = [];
 		spotifySong.artists.forEach(a => artists.push(a.name));
-		songInfo = (await playdl.search(`${spotifySong.name} ${artists.join(', ')}`, {
+		songInfo = (await playdl.search(`${artists.join(', ')} ${spotifySong.name} provided to youtube`, {
 			type: 'video',
 			limit: 1
 		}))[0];
@@ -308,7 +308,7 @@ client.on(Events.MessageCreate, async message => {
 		for (spotifyInfo of spotifyPlaylist.fetched_tracks.get('1')) {
 			let artists = [];
 			spotifyInfo.artists.forEach(a => artists.push(a.name));
-			promises.push(playdl.search(`${spotifyInfo.name} ${artists.join(', ')}`, {
+			promises.push(playdl.search(`${artists.join(', ')} ${spotifyInfo.name} provided to youtube`, {
 				type: 'video',
 				limit: 1
 			}));
@@ -322,7 +322,7 @@ client.on(Events.MessageCreate, async message => {
 					thumb: songInfo.thumbnails.findLast(t => t).url
 				};
 				resultList.push(resultItem);
-			};
+			}
 			setQueue(message, null, resultList);
 		});
 	} else if (type == 'search') {
