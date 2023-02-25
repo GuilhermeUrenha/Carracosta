@@ -227,6 +227,7 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 
 // Message
 client.on(Events.MessageCreate, async message => {
+	console.log(queueMap);
 	var songInfo, listInfo, resultItem, result, resultList = [];
 
 	if (message?.author.bot) return;
@@ -288,7 +289,7 @@ client.on(Events.MessageCreate, async message => {
 		};
 		setQueue(message, null, resultList);
 	} else if (type == 'sp_track') {
-		let spotifySong = await playdl.spotify(message.content);
+		const spotifySong = await playdl.spotify(message.content);
 		let artists = [];
 		spotifySong.artists.forEach(a => artists.push(a.name));
 		songInfo = (await playdl.search(`${spotifySong.name} ${artists.join(', ')}`, {
@@ -303,8 +304,8 @@ client.on(Events.MessageCreate, async message => {
 		};
 		setQueue(message, result, null);
 	} else if (type == 'sp_playlist' || type == 'sp_album') {
-		let spotifyPlaylist = await playdl.spotify(message.content);
-		var promises = [];
+		const spotifyPlaylist = await playdl.spotify(message.content);
+		const promises = [];
 		for (spotifyInfo of spotifyPlaylist.fetched_tracks.get('1')) {
 			let artists = [];
 			spotifyInfo.artists.forEach(a => artists.push(a.name));
@@ -715,6 +716,8 @@ async function updateRadio(interactionMessage, station) {
 					components: [buttonRow, radioRow]
 				});
 		}
+		if (!queue.songs.length)
+			queueMap.delete(interactionMessage.guildId);
 		if (interactionMessage)
 			interactionMessage.edit({
 				components: [buttonRow, radioRow]
