@@ -589,6 +589,10 @@ async function updateQueue(guild, interactionMessage) {
 async function streamRadio(interaction, station, voiceChannel) {
 	const queue = queueMap.get(interaction.guild.id) ?? new serverQueue(voiceChannel, true);
 	queueMap.set(interaction.guild.id, queue);
+	if (!queue.voiceChannel) {
+		const voiceChannel = interaction.member.voice.channel;
+		queue.voiceChannel = voiceChannel;
+	}
 	if (!queue.songs[0]) queue.songs.shift();
 	queue.songs.unshift(null);
 	const connection = voice.joinVoiceChannel({
