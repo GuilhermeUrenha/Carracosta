@@ -106,7 +106,7 @@ const voice = require('@discordjs/voice');
 const playdl = require('play-dl');
 const youtubePath = path.join(__dirname, '.data\\youtube.data');
 const youtubeData = JSON.parse(fs.readFileSync(youtubePath));
-const cookie = JSON.stringify(youtubeData.cookie).replaceAll(/[:,"]|{|}/g, (match) => {
+const cookie = JSON.stringify(youtubeData.cookie).replaceAll(/[:,"]|{|}/g, match => {
 	if (match == ':') return '=';
 	else if (match == ',') return '; ';
 	return '';
@@ -187,9 +187,17 @@ client.on(Events.InteractionCreate, async interaction => {
 		break;
 
 		case 'repeat':
-			if (queue.repeat == 0) queue.repeat = 1;
-			else if (queue.repeat == 1) queue.repeat = 2;
-			else if (queue.repeat == 2) queue.repeat = 0;
+			const off = 0, all = 1, single = 2;
+			if (queue.repeat == off) {
+				buttonRow.components[3].data.style = ButtonStyle.Primary;
+				queue.repeat = all;
+			} else if (queue.repeat == all) {
+				buttonRow.components[3].data.style = ButtonStyle.Primary;
+				queue.repeat = single;
+			} else if (queue.repeat == single) {
+				buttonRow.components[3].data.style = ButtonStyle.Secondary;
+				queue.repeat = off;
+			}
 			updateQueue(interaction.guild, interaction.message);
 		break
 
@@ -488,8 +496,9 @@ async function setQueue(message, result, resultList, interactionMessage) {
 				global.clearTimeout(queue.idle);
 			});
 			player.on(voice.AudioPlayerStatus.Idle, () => {
-				if (queue.repeat == 0) queue.songs.shift();
-				else if (queue.repeat == 1) queue.songs.push(queue.songs.shift());
+				const off = 0, all = 1;
+				if (queue.repeat == off) queue.songs.shift();
+				else if (queue.repeat == all) queue.songs.push(queue.songs.shift());
 				queue.setIdleTimer();
 				streamSong(message.guild, queue.songs[0], interactionMessage);
 			});
@@ -528,8 +537,9 @@ async function streamSong(guild, song, interactionMessage) {
 
 	if (!player.eventNames().some(e => e == voice.AudioPlayerStatus.Idle))
 		player.on(voice.AudioPlayerStatus.Idle, () => {
-			if (queue.repeat == 0) queue.songs.shift();
-			else if (queue.repeat == 1) queue.songs.push(queue.songs.shift());
+			const off = 0, all = 1;
+			if (queue.repeat == off) queue.songs.shift();
+			else if (queue.repeat == all) queue.songs.push(queue.songs.shift());
 			streamSong(guild, queue.songs[0], interactionMessage);
 		});
 	updateQueue(guild, interactionMessage);
@@ -555,9 +565,10 @@ async function updateQueue(guild, interactionMessage) {
 	}
 
 	var footerText = `${queue.songs.length.toString()} songs in queue.`;
-	if (queue.repeat == 1)
+	const all = 1, single = 2;
+	if (queue.repeat == all)
 		footerText += '  |  Looping queue.';
-	else if (queue.repeat == 2)
+	else if (queue.repeat == single)
 		footerText += '  |  Looping current.';
 	if (queue.player?._state.status == voice.AudioPlayerStatus.Paused)
 		footerText += '  |  Paused.';
