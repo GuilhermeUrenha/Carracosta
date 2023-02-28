@@ -477,6 +477,9 @@ async function setQueue(message, result, resultList, interactionMessage) {
 				delete idleDisconnectTimer[message.guild.id]
 			});
 			player.on(voice.AudioPlayerStatus.Idle, () => {
+				if (queue.repeat == 0) queue.songs.shift();
+				else if (queue.repeat == 1) queue.songs.push(queue.songs.shift());
+				streamSong(message.guild, queue.songs[0], interactionMessage);
 				idleDisconnectTimer[message.guild.id] = global.setTimeout(() => {
 					if (queue.radioMenu) queue.radioMenu = false;
 					try {
@@ -519,13 +522,13 @@ async function streamSong(guild, song, interactionMessage) {
 	await player.play(resource);
 	connection.subscribe(player);
 
-	updateQueue(guild, interactionMessage);
 	if (!player.eventNames().some(e => e == voice.AudioPlayerStatus.Idle))
 		player.on(voice.AudioPlayerStatus.Idle, () => {
 			if (queue.repeat == 0) queue.songs.shift();
 			else if (queue.repeat == 1) queue.songs.push(queue.songs.shift());
 			streamSong(guild, queue.songs[0], interactionMessage);
 		});
+	updateQueue(guild, interactionMessage);
 }
 
 async function updateQueue(guild, interactionMessage) {
