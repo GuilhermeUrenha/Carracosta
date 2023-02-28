@@ -57,10 +57,9 @@ const defaultImage = 'https://media.discordapp.net/attachments/46532924751137996
 	radioImage = 'https://media.discordapp.net/attachments/465329247511379969/1057745459315228694/eboy.jpg';
 exports.defaultImage = defaultImage;
 const guilds = new Map(Object.entries(require('./guilds.json')));
-const idleDisconnectTimer = new Map(), aloneDisconnectTimer = new Map();
 
 class serverQueue {
-	constructor(voiceChannel = undefined, radio = false, radioMenu = false, connection = null, player = null, repeat = 0, songs = []) {
+	constructor(voiceChannel = undefined, radio = false, radioMenu = false, connection = null, player = null, repeat = 0, songs = [], alone, idle) {
 		this.voiceChannel = voiceChannel;
 		this.radio = radio;
 		this.radioMenu = radioMenu;
@@ -68,6 +67,29 @@ class serverQueue {
 		this.player = player;
 		this.repeat = repeat;
 		this.songs = songs;
+		this.alone = alone;
+		this.idle = idle;
+	}
+	setAloneTimer() {
+		this.alone = global.setTimeout(async () => {
+			if (this.voiceChannel.members.filter(m => !m.user.bot).size) return;
+			if (this.radioMenu) this.radioMenu = false;
+			try {
+				if (this.connection) this.connection.destroy();
+			} catch (err) { }
+			queueMap.delete(this.voiceChannel.guildId);
+			updateQueue(this.voiceChannel.guild, await getMessage(this.voiceChannel.guild));
+		}, 10 * 1000);
+	}
+	setIdleTimer() {
+		this.idle = global.setTimeout(async () => {
+			if (this.radioMenu) this.radioMenu = false;
+			try {
+				if (this.connection) this.connection.destroy();
+			} catch (err) { }
+			queueMap.delete(this.voiceChannel.id);
+			updateQueue(this.voiceChannel.guild, await getMessage(this.voiceChannel.guild));
+		}, 480 * 1000);
 	}
 }
 
@@ -206,22 +228,13 @@ client.on(Events.InteractionCreate, async interaction => {
 client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 	const queue = queueMap.get(oldState.guild.id)
 	const voiceChannel = queue?.voiceChannel;
-	const connection = queue?.connection;
 
 	if (!voiceChannel || voiceChannel.id != (oldState.channelId || newState.channelId)) return;
 	if (oldState.channelId && !newState.channelId)
-		aloneDisconnectTimer[oldState.guild.id] = global.setTimeout(async () => {
-			if (voiceChannel.members.filter(m => !m.user.bot).size) return;
-			if (queue.radioMenu) queue.radioMenu = false;
-			try {
-				if (connection) connection.destroy();
-			} catch (err) { }
-			queueMap.delete(voiceChannel.guildId);
-			updateQueue(voiceChannel.guild, await getMessage(voiceChannel.guild));
-		}, 10 * 1000);//20
+		queue.setAloneTimer();
 	else if (!oldState.channelId && newState.channelId) {
-		global.clearInterval(idleDisconnectTimer[oldState.guild.id]);
-		global.clearInterval(aloneDisconnectTimer[oldState.guild.id]);
+		global.clearTimeout(queue.alone);
+		global.clearTimeout(queue.idle);
 	}
 });
 
@@ -457,8 +470,7 @@ async function setQueue(message, result, resultList, interactionMessage) {
 						voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5000)
 					]);
 				} catch (error) {
-					global.clearTimeout(aloneDisconnectTimer[message.guild.id]);
-					delete aloneDisconnectTimer[message.guild.id]
+					global.clearTimeout(queue.alone);
 					try {
 						if (connection) connection.destroy();
 					} catch (err) { }
@@ -473,21 +485,13 @@ async function setQueue(message, result, resultList, interactionMessage) {
 				}
 			});
 			player.on(voice.AudioPlayerStatus.Playing, () => {
-				global.clearTimeout(idleDisconnectTimer[message.guild.id]);
-				delete idleDisconnectTimer[message.guild.id]
+				global.clearTimeout(queue.idle);
 			});
 			player.on(voice.AudioPlayerStatus.Idle, () => {
 				if (queue.repeat == 0) queue.songs.shift();
 				else if (queue.repeat == 1) queue.songs.push(queue.songs.shift());
+				queue.setIdleTimer();
 				streamSong(message.guild, queue.songs[0], interactionMessage);
-				idleDisconnectTimer[message.guild.id] = global.setTimeout(() => {
-					if (queue.radioMenu) queue.radioMenu = false;
-					try {
-						if (connection) connection.destroy();
-					} catch (err) { }
-					queueMap.delete(message.guild.id);
-					updateQueue(message.guild, interactionMessage);
-				}, 600 * 1000);//600
 			});
 			queue.player = player;
 			if (!result)
@@ -610,8 +614,7 @@ async function streamRadio(interaction, station, voiceChannel) {
 				voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5000)
 			]);
 		} catch (error) {
-			global.clearTimeout(aloneDisconnectTimer[interaction.guild.id]);
-			delete aloneDisconnectTimer[interaction.guild.id];
+			global.clearTimeout(queue.alone);
 			queueMap.delete(interaction.guild.id);
 			updateQueue(interaction.guild, interaction.message);
 		}
@@ -623,18 +626,10 @@ async function streamRadio(interaction, station, voiceChannel) {
 		}
 	});
 	player.on(voice.AudioPlayerStatus.Playing, () => {
-		global.clearTimeout(idleDisconnectTimer[interaction.guild.id]);
-		delete idleDisconnectTimer[interaction.guild.id];
+		global.clearTimeout(queue.idle);
 	});
 	player.on(voice.AudioPlayerStatus.Idle, () => {
-		idleDisconnectTimer[interaction.guild.id] = global.setTimeout(() => {
-			if (queue.radioMenu) queue.radioMenu = false;
-			try {
-				if (connection) connection.destroy();
-			} catch (err) { }
-			queueMap.delete(interaction.guild.id);
-			updateQueue(interaction.guild, interaction.message);
-		}, 600 * 1000);//600
+		queue.setIdleTimer();
 	});
 	queue.player = player;
 	const resource = voice.createAudioResource(station);
