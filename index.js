@@ -73,23 +73,34 @@ class serverQueue {
 	setAloneTimer() {
 		this.alone = global.setTimeout(async () => {
 			if (this.voiceChannel.members.filter(m => !m.user.bot).size) return;
+			if (this.player._state.status != voice.AudioPlayerStatus.Idle) return;
 			if (this.radioMenu) this.radioMenu = false;
 			try {
 				if (this.connection) this.connection.destroy();
 			} catch (err) { }
 			queueMap.delete(this.voiceChannel.guildId);
-			updateQueue(this.voiceChannel.guild, await getMessage(this.voiceChannel.guild));
+			await updateQueue(this.voiceChannel.guild, await getMessage(this.voiceChannel.guild));
+			this.destroy();
 		}, 10 * 1000);
 	}
 	setIdleTimer() {
 		this.idle = global.setTimeout(async () => {
+			if (this.player._state.status != voice.AudioPlayerStatus.Idle) return;
 			if (this.radioMenu) this.radioMenu = false;
 			try {
 				if (this.connection) this.connection.destroy();
 			} catch (err) { }
 			queueMap.delete(this.voiceChannel.id);
-			updateQueue(this.voiceChannel.guild, await getMessage(this.voiceChannel.guild));
+			await updateQueue(this.voiceChannel.guild, await getMessage(this.voiceChannel.guild));
+			this.destroy();
 		}, 480 * 1000);
+	}
+	destroy() {
+		for (const propertyName in this) {
+			if (this.hasOwnProperty(propertyName) && this[propertyName] instanceof EventEmitter)
+				this[propertyName].removeAllListeners();
+			this[propertyName] = null;
+		}
 	}
 }
 
@@ -104,6 +115,7 @@ const {
 const voice = require('@discordjs/voice');
 
 const playdl = require('play-dl');
+const EventEmitter = require('node:events');
 const youtubePath = path.join(__dirname, '.data\\youtube.data');
 const youtubeData = JSON.parse(fs.readFileSync(youtubePath));
 const cookie = JSON.stringify(youtubeData.cookie).replaceAll(/[:,"]|{|}/g, match => {
@@ -183,6 +195,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
 		case 'stop':
 			queue.songs = [];
+			buttonRow.components.forEach(component => component.data.style = ButtonStyle.Secondary);
 			streamSong(interaction.guild, null, interaction.message);
 		break;
 
@@ -236,7 +249,6 @@ client.on(Events.InteractionCreate, async interaction => {
 client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 	const queue = queueMap.get(oldState.guild.id)
 	const voiceChannel = queue?.voiceChannel;
-
 	if (!voiceChannel || voiceChannel.id != (oldState.channelId || newState.channelId)) return;
 	if (oldState.channelId && !newState.channelId)
 		queue.setAloneTimer();
@@ -351,6 +363,7 @@ client.on(Events.MessageCreate, async message => {
 			type: 'video',
 			limit: 1
 		}))[0];
+		if (!songInfo) return;
 		result = {
 			title: songInfo.title,
 			url: songInfo.url,
@@ -484,6 +497,7 @@ async function setQueue(message, result, resultList, interactionMessage) {
 					} catch (err) { }
 					queueMap.delete(message.guild.id);
 					updateQueue(message.guild, interactionMessage);
+					queue.destroy();
 				}
 			});
 			queue.connection = connection;
@@ -511,6 +525,7 @@ async function setQueue(message, result, resultList, interactionMessage) {
 			streamSong(message.guild, queue.songs[0], interactionMessage);
 		} catch (err) {
 			queueMap.delete(message.guild.id);
+			queue.destroy();
 			return message.channel.send(`${codeBlock('ml', err)}`);
 		}
 	}
@@ -519,16 +534,17 @@ async function setQueue(message, result, resultList, interactionMessage) {
 async function streamSong(guild, song, interactionMessage) {
 	const queue = queueMap.get(guild.id);
 	if (!song) {
-		if (queue.player) queue.player.stop();
+		if (queue?.player) queue.player.stop();
 		queueMap.delete(guild.id);
-		return updateQueue(guild, interactionMessage);
+		await updateQueue(guild, interactionMessage);
+		return queue.destroy();
 	}
 	const connection = queue.connection;
 	const player = queue.player;
 
 	const source = await playdl.stream(song.url);
 	const resource = voice.createAudioResource(source.stream, {
-		inputType: source.type
+		inputType: voice.StreamType.Opus //source.type
 	});
 	//const resource = voice.createAudioResource(source.stream, {inputType: source.type, inlineVolume:true});
 	//resource.volume.setVolume(0.5);
@@ -628,6 +644,7 @@ async function streamRadio(interaction, station, voiceChannel) {
 			global.clearTimeout(queue.alone);
 			queueMap.delete(interaction.guild.id);
 			updateQueue(interaction.guild, interaction.message);
+			queue.destroy();
 		}
 	});
 	queue.connection = connection;
@@ -644,6 +661,8 @@ async function streamRadio(interaction, station, voiceChannel) {
 	});
 	queue.player = player;
 	const resource = voice.createAudioResource(station);
+	//	const { stream, type } = await voice.demuxProbe(resource);
+	//	console.log(stream, type);
 	player.play(resource);
 	connection.subscribe(player);
 	updateRadio(interaction.message, station);
@@ -708,7 +727,10 @@ async function updateRadio(interactionMessage, station) {
 		menu.setPlaceholder('No station selected.');
 		if (queue.radio) {
 			if (queue.player) queue.player.stop();
-			if (!queue.songs.length) queueMap.delete(interactionMessage.guild.id);
+			if (!queue.songs.length) {
+				queueMap.delete(interactionMessage.guild.id);
+				queue.destroy();
+			}
 			queue.songs.shift();
 			queue.radio = false;
 			const display = new EmbedBuilder()
@@ -722,14 +744,17 @@ async function updateRadio(interactionMessage, station) {
 			if (queue.songs.length)
 				return streamSong(interactionMessage.guild, queue.songs[0], interactionMessage);
 			queueMap.delete(interactionMessage.guild.id);
+			queue.destroy();
 			if (interactionMessage)
 				return interactionMessage.edit({
 					embeds: [display],
 					components: [buttonRow, radioRow]
 				});
 		}
-		if (!queue.songs.length)
+		if (!queue.songs.length) {
 			queueMap.delete(interactionMessage.guildId);
+			queue.destroy();
+		}
 		if (interactionMessage)
 			interactionMessage.edit({
 				components: [buttonRow, radioRow]
