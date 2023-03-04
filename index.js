@@ -73,7 +73,6 @@ class serverQueue {
 	setAloneTimer() {
 		this.alone = global.setTimeout(async () => {
 			if (this.voiceChannel.members.filter(m => !m.user.bot).size) return;
-			if (this.player._state.status != voice.AudioPlayerStatus.Idle) return;
 			if (this.radioMenu) this.radioMenu = false;
 			try {
 				if (this.connection) this.connection.destroy();
@@ -81,7 +80,7 @@ class serverQueue {
 			queueMap.delete(this.voiceChannel.guildId);
 			await updateQueue(this.voiceChannel.guild, await getMessage(this.voiceChannel.guild));
 			this.destroy();
-		}, 10 * 1000);
+		}, 15 * 1000);
 	}
 	setIdleTimer() {
 		this.idle = global.setTimeout(async () => {
@@ -491,12 +490,12 @@ async function setQueue(message, result, resultList, interactionMessage) {
 						voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5000)
 					]);
 				} catch (error) {
-					global.clearTimeout(queue.alone);
 					try {
 						if (connection) connection.destroy();
 					} catch (err) { }
+					global.clearTimeout(queue.alone);
 					queueMap.delete(message.guild.id);
-					updateQueue(message.guild, interactionMessage);
+					await updateQueue(message.guild, interactionMessage);
 					queue.destroy();
 				}
 			});
@@ -641,9 +640,12 @@ async function streamRadio(interaction, station, voiceChannel) {
 				voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5000)
 			]);
 		} catch (error) {
+			try {
+				if (connection) connection.destroy();
+			} catch (err) { }
 			global.clearTimeout(queue.alone);
 			queueMap.delete(interaction.guild.id);
-			updateQueue(interaction.guild, interaction.message);
+			await updateQueue(interaction.guild, interaction.message);
 			queue.destroy();
 		}
 	});
