@@ -660,9 +660,9 @@ async function streamRadio(interaction, station, voiceChannel) {
 		queue.setIdleTimer();
 	});
 	queue.player = player;
-	const resource = voice.createAudioResource(station);
-	//	const { stream, type } = await voice.demuxProbe(resource);
-	//	console.log(stream, type);
+	const resource = voice.createAudioResource(station, {
+		inputType: voice.StreamType.Opus //source.type
+	});
 	player.play(resource);
 	connection.subscribe(player);
 	updateRadio(interaction.message, station);
