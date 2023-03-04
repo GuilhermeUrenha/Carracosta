@@ -36,18 +36,18 @@ for (const file of commandFiles) {
 	if ('data' in command && 'execute' in command)
 		client.commands.set(command.data.name, command);
 	else
-		console.log(`[WARNING] [Command at ${filePath} missing required 'data'/'execute'.]`);
+		console.log(`[${filePath} missing required 'data'/'execute'.]`);
 }
 
 client.once(Events.ClientReady, client => {
 	process.stdout.write('[Ready.][M]');
 	let totalServers = client.guilds.cache.size;
 	client.user.setPresence({
+		status: 'online',
 		activities: [{
 			name: `${totalServers} servers.`,
 			type: ActivityType.Listening
-		}],
-		status: 'online'
+		}]
 	});
 	resetSetups(client);
 });
@@ -227,9 +227,6 @@ client.on(Events.InteractionCreate, async interaction => {
 		case 'radio':
 			updateRadio(interaction.message);
 		break;
-
-		default:
-			return;
 	}
 	interaction.deferUpdate().catch(console.error);
 });
