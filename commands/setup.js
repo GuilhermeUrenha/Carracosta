@@ -32,7 +32,7 @@ module.exports = {
 			});
 
 		const textChannel = 0;
-		const channels = interaction.guild.channels.cache.filter(channel => channel.type == textChannel);
+		const channels = interaction.guild.channels.cache.filter(channel => channel.type === textChannel);
 
 		const guild = guilds.get(interaction.guild.id);
 		const channelId = guild.channelId;
