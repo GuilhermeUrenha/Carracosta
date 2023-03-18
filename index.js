@@ -182,19 +182,19 @@ client.on(Events.InteractionCreate, async interaction => {
 				queue.player.unpause();
 			}
 			updateQueue(interaction.guild, interaction.message);
-		break;
+			break;
 
 		case 'skip':
 			if (queue.repeat === 0) queue.songs.shift();
 			else if (queue.repeat === 1) queue.songs.push(queue.songs.shift());
 			streamSong(interaction.guild, queue.songs[0], interaction.message);
-		break;
+			break;
 
 		case 'stop':
 			queue.songs = [];
 			buttonRow.components.forEach(component => component.data.style = ButtonStyle.Secondary);
 			streamSong(interaction.guild, null, interaction.message);
-		break;
+			break;
 
 		case 'repeat':
 			const off = 0, all = 1, single = 2;
@@ -209,7 +209,7 @@ client.on(Events.InteractionCreate, async interaction => {
 				queue.repeat = off;
 			}
 			updateQueue(interaction.guild, interaction.message);
-		break
+			break
 
 		case 'random':
 			if (!queue.songs.length) break;
@@ -220,11 +220,11 @@ client.on(Events.InteractionCreate, async interaction => {
 				.map(({ value }) => value);
 			queue.songs = [firstSong, ...shuffledSongs];
 			updateQueue(interaction.guild, interaction.message);
-		break;
+			break;
 
 		case 'radio':
 			updateRadio(interaction.message);
-		break;
+			break;
 	}
 	interaction.deferUpdate().catch(console.error);
 });
