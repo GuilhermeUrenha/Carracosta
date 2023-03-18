@@ -10,6 +10,7 @@ module.exports = {
 		process.stdout.write('[Exit.]');
 		await interaction.reply('`[Exit.]`');
 		await interaction.client.destroy();
+		process.exitCode = 0;
 		process.exit(0);
 	}
 }
