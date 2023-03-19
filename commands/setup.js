@@ -19,6 +19,7 @@ module.exports = {
 			buttonRow,
 			radioRow
 		} = require('../index.js');
+
 		const guilds = new Map(Object.entries(require('../guilds.json')));
 		var message, channel;
 
@@ -41,12 +42,14 @@ module.exports = {
 		if (messageId) {
 			interaction.deferReply();
 			channel = await channels.get(channelId);
+
 			if (channel) {
 				let messages = await channel.messages.fetch({
 					limit: 5
 				});
 				message = await messages.get(messageId);
 			}
+
 			if (message)
 				channel = message.channel;
 			else {
@@ -62,18 +65,22 @@ module.exports = {
 						position: 0
 					}).catch(console.error);
 				}
+
 				message = await channel.send({
 					content: 'Q__ueue__\n\u2800',
 					embeds: [setup],
 					components: [buttonRow, radioRow]
 				});
+
 				guilds.set(message.guildId, {
 					channelId: channel.id,
 					messageId: message.id
 				});
+
 				fs.writeFileSync(file, JSON.stringify(Object.fromEntries(guilds), null, 4), 'utf8');
 			}
-			if (channel) return interaction.editReply(`<#${channel.id}>`);
+			if (channel)
+				return interaction.editReply(`<#${channel.id}>`);
 			interaction.editReply(`\`[Erro.]\``);
 		} else {
 			channel = await interaction.guild.channels.create({
@@ -83,15 +90,18 @@ module.exports = {
 				topic: `<@${process.env.clientId}>`,
 				position: 0
 			}).catch(console.error);
+
 			message = await channel.send({
 				content: 'Q__ueue__\n\u2800',
 				embeds: [setup],
 				components: [buttonRow, radioRow]
 			});
+
 			guilds.set(message.guildId, {
 				channelId: channel.id,
 				messageId: message.id
 			});
+
 			fs.writeFileSync(file, JSON.stringify(Object.fromEntries(guilds), null, 4), 'utf8');
 			interaction.editReply({
 				content: `<#${channel.id}>`
