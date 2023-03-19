@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const EventEmitter = require('node:events');
 require('dotenv').config();
 
 const {
@@ -71,26 +72,30 @@ class serverQueue {
 		this.idle = idle;
 	}
 	setAloneTimer() {
+		global.clearTimeout(this.alone);
 		this.alone = global.setTimeout(async () => {
-			if (this.voiceChannel.members.filter(m => !m.user.bot).size) return;
+			if (this.voiceChannel?.members.filter(m => !m.user.bot).size) return;
 			if (this.radioMenu) this.radioMenu = false;
 			if (this.connection) this.connection.destroy();
-			queueMap.delete(this.voiceChannel.guildId);
-			await updateQueue(this.voiceChannel.guild, await getMessage(this.voiceChannel.guild));
+			if (this.voiceChannel) {
+				queueMap.delete(this.voiceChannel.guildId);
+				await updateQueue(this.voiceChannel.guild, await getMessage(this.voiceChannel.guild));
+			}
 			this.destroy();
 		}, 15 * 1000);
 	}
 	setIdleTimer() {
+		global.clearTimeout(this.idle);
 		this.idle = global.setTimeout(async () => {
 			if (this.player?._state.status !== voice.AudioPlayerStatus.Idle && this.player?._state.status !== undefined) return;
 			if (this.radioMenu) this.radioMenu = false;
 			if (this.connection) this.connection.destroy();
 			if (this.voiceChannel) {
-				queueMap.delete(this.voiceChannel.id);
+				queueMap.delete(this.voiceChannel.guildId);
 				await updateQueue(this.voiceChannel.guild, await getMessage(this.voiceChannel.guild));
 			}
 			this.destroy();
-		}, 10 * 1000);
+		}, 360 * 1000);
 	}
 	destroy() {
 		for (const propertyName in this) {
@@ -112,7 +117,6 @@ const {
 const voice = require('@discordjs/voice');
 
 const playdl = require('play-dl');
-const EventEmitter = require('node:events');
 const youtubePath = path.join(__dirname, '.data\\youtube.data');
 const youtubeData = JSON.parse(fs.readFileSync(youtubePath));
 const cookie = JSON.stringify(youtubeData.cookie).replaceAll(/[:,"]|{|}/g, match => {
@@ -171,6 +175,7 @@ client.on(Events.InteractionCreate, async interaction => {
 	if (!permissions.has('CONNECT') || !permissions.has('SPEAK'))
 		return interaction.deferUpdate().catch(console.error);
 
+	interaction.deferUpdate().catch(console.error);
 	switch (action) {
 		case 'pause':
 			const playerState = queue.player._state.status;
@@ -226,15 +231,14 @@ client.on(Events.InteractionCreate, async interaction => {
 			updateRadio(interaction.message);
 			break;
 	}
-	interaction.deferUpdate().catch(console.error);
 });
 
 // Select Menu
 client.on(Events.InteractionCreate, async interaction => {
 	if (!interaction.isStringSelectMenu()) return;
 	if (!interaction?.member?.voice?.channel) return;
-	const voiceChannel = interaction.member.voice.channel;
 	interaction.deferUpdate().catch(console.error);
+	const voiceChannel = interaction.member.voice.channel;
 	if (interaction.customId === 'station')
 		streamRadio(interaction, interaction.values[0], voiceChannel);
 });

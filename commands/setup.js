@@ -39,7 +39,7 @@ module.exports = {
 		const messageId = guild.messageId;
 
 		if (messageId) {
-			await interaction.deferReply();
+			interaction.deferReply();
 			channel = await channels.get(channelId);
 			if (channel) {
 				let messages = await channel.messages.fetch({
