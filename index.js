@@ -682,7 +682,6 @@ async function streamRadio(interaction, station, voiceChannel) {
 				voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5000)
 			]);
 		} catch (error) {
-			if (connection) connection.destroy();
 			global.clearTimeout(queue.alone);
 			queueMap.delete(interaction.guild.id);
 			await updateQueue(interaction.guild, interaction.message);
