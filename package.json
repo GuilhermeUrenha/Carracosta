@@ -4,10 +4,13 @@
   "description": "Discord Bot made by Gui#2435.",
   "main": "index.js",
   "bin": {
-    "DsJs": "./index.js"
+    "Carracosta": "./index.js"
   },
   "scripts": {
     "build": "pkg . --targets node18-win-x64 --output Carracosta.exe"
+  },
+  "pkg": {
+    "scripts": "commands/*.js"
   },
   "keywords": [],
   "author": "Gui#2435",
