@@ -3,6 +3,12 @@
   "version": "3.0",
   "description": "Discord Bot made by Gui#2435.",
   "main": "index.js",
+  "bin": {
+    "DsJs": "./index.js"
+  },
+  "scripts": {
+    "build": "pkg . --targets node18-win-x64 --output Carracosta.exe"
+  },
   "keywords": [],
   "author": "Gui#2435",
   "license": "ISC",
