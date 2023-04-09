@@ -275,7 +275,7 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 
 // Message
 client.on(Events.MessageCreate, async message => {
-	var songInfo, listInfo, resultItem, result, resultList = [];
+	let songInfo, listInfo, resultItem, result, resultList = [];
 
 	if (message?.author.bot) return;
 	if (message?.member?.user?.id === process.env.clientId) return;
@@ -596,7 +596,7 @@ async function streamSong(guild, song, interactionMessage) {
 async function updateQueue(guild, interactionMessage) {
 	const queue = queueMap.get(guild.id) ?? new serverQueue();
 
-	var queueText = 'Q__ueue__';
+	let queueText = 'Q__ueue__';
 	let l = queue.songs.length;
 	let limit = false;
 
@@ -614,7 +614,7 @@ async function updateQueue(guild, interactionMessage) {
 		queueText = 'Q__ueue__\n\t\t**[ . . . ]**' + queueText;
 	}
 
-	var footerText = `${queue.songs.length.toString()} songs in queue.`;
+	let footerText = `${queue.songs.length.toString()} songs in queue.`;
 	const all = 1, single = 2;
 	if (queue.repeat === all)
 		footerText += '  |  Looping queue.';
@@ -719,7 +719,7 @@ async function updateRadio(interactionMessage, station) {
 	queueMap.set(interactionMessage.guild.id, queue);
 
 	if (station) {
-		var stationName, stationUrl;
+		let stationName, stationUrl;
 		queue.radio = true;
 		stationRow.components[0].options.forEach(s => {
 			if (s.data.value === station) {
@@ -729,7 +729,7 @@ async function updateRadio(interactionMessage, station) {
 		});
 		menu.setPlaceholder(stationName);
 
-		var queueText = 'Q__ueue__';
+		let queueText = 'Q__ueue__';
 		let l = queue.songs.length;
 		let limit = false;
 
@@ -822,7 +822,7 @@ async function updateRadio(interactionMessage, station) {
 
 async function resetSetups(client) {
 	guilds.forEach(async ({ channelId, messageId }, guildId) => {
-		var message;
+		let message;
 		const textChannel = 0;
 		const guild = await client.guilds.fetch(guildId);
 		const channels = guild.channels.cache.filter(channel => channel.type === textChannel);
@@ -854,7 +854,7 @@ async function resetSetups(client) {
 }
 
 async function getMessage(guild) {
-	var message;
+	let message;
 	const currentGuild = guilds.get(guild.id);
 	const channelId = currentGuild.channelId;
 	const messageId = currentGuild.messageId;

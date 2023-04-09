@@ -21,7 +21,7 @@ module.exports = {
 		} = require('../index.js');
 
 		const guilds = new Map(Object.entries(require('../guilds.json')));
-		var message, channel;
+		let message, channel;
 
 		const setup = new EmbedBuilder()
 			.setColor(interaction.guild.members.me.displayColor)
