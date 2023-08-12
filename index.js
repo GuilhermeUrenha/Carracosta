@@ -307,7 +307,13 @@ client.on(Events.MessageCreate, async message => {
 	if (playdl.is_expired())
 		await playdl.refreshToken();
 
+
+	//spotify link
+	if (message.content.includes('spotify.com'))
+		message.content = message.content.replace(/\/intl-[^/]*\//, '/');
+
 	const type = await playdl.validate(message.content);
+
 	if (type === 'yt_video') {
 		songInfo = await playdl.video_info(message.content);
 
@@ -318,6 +324,7 @@ client.on(Events.MessageCreate, async message => {
 			thumb: songInfo.video_details.thumbnails.findLast(t => t).url
 		};
 		setQueue(message, result, null);
+
 	} else if (type === 'yt_playlist') {
 		listInfo = await playdl.playlist_info(message.content, {
 			incomplete: true
@@ -338,6 +345,7 @@ client.on(Events.MessageCreate, async message => {
 			resultList.push(resultItem);
 		}
 		setQueue(message, null, resultList);
+
 	} else if (type === 'sp_track') {
 		const spotifySong = await playdl.spotify(message.content);
 		let artists = [];
@@ -355,6 +363,7 @@ client.on(Events.MessageCreate, async message => {
 			thumb: songInfo.thumbnails.findLast(t => t).url
 		};
 		setQueue(message, result, null);
+
 	} else if (type === 'sp_playlist' || type === 'sp_album') {
 		const spotifyPlaylist = await playdl.spotify(message.content);
 		const promises = [];
@@ -379,6 +388,7 @@ client.on(Events.MessageCreate, async message => {
 			}
 			setQueue(message, null, resultList);
 		});
+
 	} else if (type === 'search') {
 		songInfo = (await playdl.search(message.content, {
 			type: 'video',
@@ -616,10 +626,12 @@ async function updateQueue(guild, interactionMessage) {
 
 	let footerText = `${queue.songs.length.toString()} songs in queue.`;
 	const all = 1, single = 2;
+
 	if (queue.repeat === all)
 		footerText += '  |  Looping queue.';
 	else if (queue.repeat === single)
 		footerText += '  |  Looping current.';
+
 	if (queue.player?._state.status === voice.AudioPlayerStatus.Paused)
 		footerText += '  |  Paused.';
 
@@ -641,6 +653,7 @@ async function updateQueue(guild, interactionMessage) {
 		buttonRow.components.forEach(component => component.data.disabled = false);
 		radioRow.components[0].data.style = ButtonStyle.Secondary;
 		menu.setPlaceholder('No station selected.');
+
 		if (interactionMessage)
 			return interactionMessage.edit({
 				content: queueText,
