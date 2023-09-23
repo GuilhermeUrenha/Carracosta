@@ -42,8 +42,8 @@ for (const file of commandFiles) {
 }
 
 client.once(Events.ClientReady, client => {
-	process.stdout.write('[Ready.][M]');
-	let totalServers = client.guilds.cache.size;
+	process.stdout.write('[Ready.]');
+	const totalServers = client.guilds.cache.size;
 	client.user.setPresence({
 		status: 'online',
 		activities: [{
@@ -286,27 +286,20 @@ client.on(Events.MessageCreate, async message => {
 
 	if (queueMap.get(message.guild.id)?.radio)
 		return message.channel.send(`<@${message.member.id}> Radio On.`)
-			.then(msg => {
-				global.setTimeout(() => msg.delete(), 5000)
-			});
+			.then(msg => global.setTimeout(() => msg.delete(), 5000));
 
 	if (!message?.member?.voice?.channel)
 		return message.channel.send(`<@${message.member.id}> Please enter a voice channel.`)
-			.then(msg => {
-				global.setTimeout(() => msg.delete(), 5000)
-			});
+			.then(msg => global.setTimeout(() => msg.delete(), 5000));
 
 	const voiceChannel = message.member.voice.channel;
 	const permissions = voiceChannel.permissionsFor(message.client.user);
 	if (!permissions.has('CONNECT') || !permissions.has('SPEAK'))
 		return message.channel.send(`<@${message.member.id}> Unable to enter/speak in voice.`)
-			.then(msg => {
-				global.setTimeout(() => msg.delete(), 5000)
-			});
+			.then(msg => global.setTimeout(() => msg.delete(), 5000));
 
 	if (playdl.is_expired())
 		await playdl.refreshToken();
-
 
 	//spotify link
 	if (message.content.includes('spotify.com'))
@@ -315,7 +308,9 @@ client.on(Events.MessageCreate, async message => {
 	const type = await playdl.validate(message.content);
 
 	if (type === 'yt_video') {
+		console.log(message.content);
 		songInfo = await playdl.video_info(message.content);
+		console.log(songInfo);
 
 		result = {
 			title: songInfo.video_details.title,
@@ -331,11 +326,9 @@ client.on(Events.MessageCreate, async message => {
 		});
 		if (!listInfo)
 			return message.channel.send(`<@${message.member.id}> Invalid/private playlist.`)
-				.then(msg => {
-					global.setTimeout(() => msg.delete(), 5000)
-				});
+				.then(msg => global.setTimeout(() => msg.delete(), 5000));
 
-		for (songInfo of listInfo.videos) {
+		for (const songInfo of listInfo.videos) {
 			resultItem = {
 				title: songInfo.title,
 				url: songInfo.url,
@@ -368,7 +361,7 @@ client.on(Events.MessageCreate, async message => {
 		const spotifyPlaylist = await playdl.spotify(message.content);
 		const promises = [];
 
-		for (spotifyInfo of spotifyPlaylist.fetched_tracks.get('1')) {
+		for (const spotifyInfo of spotifyPlaylist.fetched_tracks.get('1')) {
 			let artists = [];
 			spotifyInfo.artists.forEach(a => artists.push(a.name));
 			promises.push(playdl.search(`${artists.join(', ')} ${spotifyInfo.name} provided to youtube`, {
@@ -377,7 +370,7 @@ client.on(Events.MessageCreate, async message => {
 			}));
 		}
 		Promise.all(promises).then(songList => {
-			for (songInfo of songList.flat()) {
+			for (const songInfo of songList.flat()) {
 				resultItem = {
 					title: songInfo.title,
 					url: songInfo.url,
@@ -506,7 +499,7 @@ async function setQueue(message, result, resultList, interactionMessage) {
 
 	if (queue.songs.length) {
 		if (!result)
-			for (res of resultList)
+			for (const res of resultList)
 				queue.songs.push(res);
 		else
 			queue.songs.push(result);
@@ -555,7 +548,7 @@ async function setQueue(message, result, resultList, interactionMessage) {
 			queue.player = player;
 
 			if (!result)
-				for (res of resultList)
+				for (const res of resultList)
 					queue.songs.push(res);
 			else
 				queue.songs.push(result);
@@ -612,7 +605,7 @@ async function updateQueue(guild, interactionMessage) {
 
 	if (!queue.songs.slice(1).length)
 		queueText += '\n\u2800';
-	for (song of queue.songs.slice(1).reverse()) {
+	for (const song of queue.songs.slice(1).reverse()) {
 		l--;
 		queueText = queueText + `\n${l}. ${song.title} \u2013 [${song.durRaw}]`;
 		if (queueText.length > 1800) limit = true;
@@ -748,7 +741,7 @@ async function updateRadio(interactionMessage, station) {
 
 		if (!queue.songs.slice(1).length)
 			queueText += '\n\u2800';
-		for (song of queue.songs.slice(1).reverse()) {
+		for (const song of queue.songs.slice(1).reverse()) {
 			l--;
 			queueText = queueText + `\n${l}. ${song.title} \u2013 [${song.durRaw}]`;
 			if (queueText.length > 1800) limit = true;
