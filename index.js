@@ -308,9 +308,7 @@ client.on(Events.MessageCreate, async message => {
 	const type = await playdl.validate(message.content);
 
 	if (type === 'yt_video') {
-		console.log(message.content);
 		songInfo = await playdl.video_info(message.content);
-		console.log(songInfo);
 
 		result = {
 			title: songInfo.video_details.title,
