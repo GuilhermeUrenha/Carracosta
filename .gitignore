@@ -1,5 +1,9 @@
 .env
 .data
 guilds.json
+radio.json
 node_modules
 Carracosta.exe
+authorization.js
+music
+music.txt
