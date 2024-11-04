@@ -5,6 +5,7 @@ const {
   InteractionContextType
 } = require('discord.js');
 const { setup, channel_config } = require('../components.js');
+const path = require('node:path');
 const fs = require('node:fs');
 
 module.exports = {
@@ -15,9 +16,9 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
 
   async execute(interaction) {
-    const file = '..\\guilds.json';
+    const guild_path = path.resolve(__dirname, '../guilds.json');
 
-    const guilds = new Map(Object.entries(require('../guilds.json')));
+    const guilds = new Map(Object.entries(require(guild_path)));
     let message, channel;
 
     const channels = interaction.guild.channels.cache.filter(channel => channel.type === ChannelType.GuildText);
@@ -27,13 +28,13 @@ module.exports = {
 
     if (messageId) {
       interaction.deferReply();
-      channel = await channels.get(channelId);
+      channel = channels.get(channelId);
 
       if (channel) {
         let messages = await channel.messages.fetch({
           limit: 5
         });
-        message = await messages.get(messageId);
+        message = messages.get(messageId);
       }
 
       if (message)
@@ -53,7 +54,7 @@ module.exports = {
           messageId: message.id
         });
 
-        fs.writeFileSync(file, JSON.stringify(Object.fromEntries(guilds), null, 4), 'utf8');
+        fs.writeFileSync(guild_path, JSON.stringify(Object.fromEntries(guilds), null, 4), 'utf8');
       }
       if (channel)
         return interaction.editReply(`<#${channel.id}>`);
@@ -67,7 +68,7 @@ module.exports = {
         messageId: message.id
       });
 
-      fs.writeFileSync(file, JSON.stringify(Object.fromEntries(guilds), null, 4), 'utf8');
+      fs.writeFileSync(guild_path, JSON.stringify(Object.fromEntries(guilds), null, 4), 'utf8');
       interaction.editReply({
         content: `<#${channel.id}>`
       });

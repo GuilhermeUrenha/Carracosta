@@ -82,7 +82,6 @@ client.once(Events.ClientReady, async function (client) {
 
     if (voice_state && voice_state.channel) {
       const queue = new serverQueue(guild, voice_state.channel);
-      queueMap.set(guild.id, queue);
     }
   });
 });
@@ -95,23 +94,38 @@ class serverQueue {
   static repeat_all = 1;
   static repeat_single = 2;
 
-  station = false;
   connection = null;
+  player = null;
   repeat = serverQueue.repeat_off;
   songs = [];
 
-  constructor(guild, voice_channel = undefined) {
+  constructor(guild, voice_channel) {
     this.guild = guild;
     this.voice_channel = voice_channel;
 
-    this.queue_message = messageMap.get(guild.id);
-    if (this.queue_message.disabled) this.queue_message.toggle_buttons();
+    this.queue_message = messageMap.get(this.guild.id);
+    if (this.queue_message?.disabled) this.queue_message.toggle_buttons();
 
     this.setup_player();
+    this.setup_connection();
+
+    queueMap.set(this.guild.id, this);
+  }
+
+  get channel() {
+    try {
+      return this.queue_message?.channel;
+    } catch (error) {
+      this.destroy();
+    }
   }
 
   get message() {
-    return this.queue_message?.message;
+    try {
+      return this.queue_message?.message;
+    } catch (error) {
+      this.destroy();
+    }
   }
 
   setup_player() {
@@ -125,7 +139,7 @@ class serverQueue {
     this.player.on(voice.AudioPlayerStatus.Idle, () => {
       if (this.repeat === serverQueue.repeat_off) this.songs.shift();
       else if (this.repeat === serverQueue.repeat_all) this.songs.push(this.songs.shift());
-      streamSong(this);
+      this.streamSong();
     });
   }
 
@@ -157,10 +171,125 @@ class serverQueue {
       this.songs.push(result);
   }
 
+  async updateQueue() {
+    let queueText = queueTitle;
+    let l = this.songs.length;
+    let limit = false;
+
+    if (!this.songs.slice(1).length) queueText += queueEmpty;
+    for (const song of this.songs.slice(1).reverse()) {
+      l--;
+      queueText += `\n${l}\\. ${song.title} \u2013 [${song.durRaw}]`;
+      if (queueText.length > 1800) limit = true;
+    }
+
+    if (limit) {
+      queueText = queueText.slice(queueText.length - 1800);
+      queueText = queueText.slice(queueText.indexOf('\n'));
+      queueText = queueTitle + queueLimit + queueText;
+    }
+
+    let footerText = `${this.songs.length.toString()} songs in queue.`;
+
+    if (this.repeat === serverQueue.repeat_all)
+      footerText += '  |  Looping queue.';
+    else if (this.repeat === serverQueue.repeat_single)
+      footerText += '  |  Looping current.';
+
+    if (this.player._state.status === voice.AudioPlayerStatus.Paused)
+      footerText += '  |  Paused.';
+
+    const display = new EmbedBuilder()
+      .setColor(this.guild.members.me.displayColor)
+      .setTitle('No Song')
+      .setImage(defaultImage)
+      .setFooter({
+        text: footerText,
+        iconURL: client.user.displayAvatarURL()
+      });
+
+    if (this.songs.length) {
+      display.setTitle(`[${this.songs[0].durRaw}] - ${this.songs[0].title}`);
+      display.setImage(this.songs[0].thumb);
+    }
+
+    this.message.edit({
+      content: queueText,
+      embeds: [display],
+      components: [buttonRow, radioRow]
+    });
+  }
+
+  async prepareSong(url) {
+    return youtubedl(url, {
+      noCheckCertificates: true,
+      noWarnings: true,
+      preferFreeFormats: true,
+      addHeader: ['referer:youtube.com', 'user-agent:googlebot'],
+      output: './music/%(title)s.ogg',
+      extractAudio: true,
+      restrictFilenames: true,
+      format: 'bestaudio'
+    });
+  }
+
+  async streamSong() {
+    if (!this.songs.length) {
+      if (this.player) this.player.stop();
+      return this.updateQueue();
+    }
+
+    const song = this.songs[0];
+    const title = sanitize_filename(song.title);
+
+    try {
+      if (!fs.existsSync(`music/${title}.ogg.opus`)) {
+        const channel = await this.channel;
+        channel.sendTyping();
+
+        const source = await this.prepareSong(song.url);
+        const log = path.resolve(__dirname, 'music.txt');
+        const log_stream = fs.createWriteStream(log, { flags: 'a' });
+        log_stream.write(`song: ${title}\n\n${source}\n\n\n`);
+      }
+    } catch (err) {
+      return this.destroy();
+    }
+
+    if (!fs.existsSync(`music/${title}.ogg.opus`)) {
+      this.songs.shift();
+      this.streamSong();
+      return this.message.channel.send(`Invalid source. Please try another.`).then(deleteMessage);
+    }
+
+    const resource = voice.createAudioResource(fs.createReadStream(`music/${title}.ogg.opus`), {
+      inputType: voice.StreamType.OggOpus //source.type
+    });
+
+    await this.player.play(resource);
+    this.updateQueue();
+  }
+
+  async streamRadio() {
+    if (!this.voice_channel) {
+      this.voice_channel = interaction.member.voice.channel;
+    }
+
+    if (!this.songs[0]) this.songs.shift();
+    this.songs.unshift(null);
+
+    const resource = voice.createAudioResource(this.station, {
+      inputType: voice.StreamType.Opus //source.type
+    });
+
+    this.player.play(resource);
+    this.updateRadio();
+  }
+
   async destroy() {
     queueMap.delete(this.guild.id);
     if (this.connection) this.connection.destroy();
-    await updateQueue(this);
+    await this.updateQueue();
 
     for (const property in this) {
       if (this.hasOwnProperty(property) && this[property] instanceof EventEmitter)
@@ -172,49 +301,49 @@ class serverQueue {
 
 class queueMessage {
   disabled = true;
-  menu_radio = false;
 
   constructor(guild, message = null) {
     this.guild = guild;
     this.message = message;
+    this.channel = this.getChannel();
   }
 
   toggle_buttons() {
     this.disabled = !this.disabled;
-
-    let disable_buttons = this.disabled;
-    if (this.menu_radio) disable_buttons = true;
-
-    buttonRow.components.forEach(component => component.data.disabled = disable_buttons);
-
-    const components = [buttonRow, radioRow];
-    if (this.menu_radio) components.push(stationRow);
+    buttonRow.components.forEach(component => component.data.disabled = this.disabled);
 
     this.message.edit({
-      components: components
+      components: [buttonRow, radioRow]
     });
   }
 
-  toggle_radio() {
-    this.menu_radio = !this.menu_radio;
+  async getChannel() {
+    const current_guild = guilds.get(this.guild.id);
 
-    if (this.menu_radio) {
-      radioRow.components[0].data.style = ButtonStyle.Primary;
+    const channelId = current_guild.channelId;
+    const channel = await this.guild.channels.cache.get(channelId);
 
-      this.message.edit({
-        components: [buttonRow, radioRow, stationRow]
+    if (channel) return channel;
+  }
+
+  async getMessage() {
+    const currentGuild = guilds.get(this.guild.id);
+    const channelId = currentGuild.channelId;
+    const messageId = currentGuild.messageId;
+    const channel = await guild.channels.cache.get(channelId);
+
+    if (channel) {
+      const messages = await channel.messages.fetch({
+        limit: 5
       });
-    } else {
-      radioRow.components[0].data.style = ButtonStyle.Secondary;
 
-      this.message.edit({
-        components: [buttonRow, radioRow]
-      });
+      const message = await messages.get(messageId);
+      if (message) return message;
     }
   }
 
   async refresh_message() {
-    this.message = await getMessage(this.guild);
+    this.message = await getMessage();
     return this.message;
   }
 }
@@ -255,61 +384,62 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isButton()) return;
   const action = interaction.customId;
 
-  if (!queueMap.has(interaction.guildId) && action !== 'radio')
-    return interaction.deferUpdate().catch(console.error);
-
-  if (!interaction.member?.voice?.channel)
-    return interaction.deferUpdate().catch(console.error);
-
-  const voice_channel = interaction.member.voice.channel;
-  const permissions = voice_channel.permissionsFor(interaction.client.user);
-  if (!permissions.has('CONNECT') || !permissions.has('SPEAK'))
-    return interaction.deferUpdate().catch(console.error);
-
   const queue = queueMap.get(interaction.guildId);
-  interaction.deferUpdate().catch(console.error);
+  if (action !== 'radio') {
+    const voice_channel = interaction.member?.voice?.channel;
+
+    if (!voice_channel || queue?.voice_channel.id !== voice_channel.id)
+      return interaction.reply({ content: `Please join the bot's voice channel.`, ephemeral: true });
+
+    interaction.deferUpdate().catch(console.error);
+  }
 
   switch (action) {
     case 'pause':
-      const playerState = queue.player?._state.status;
-      if (playerState === voice.AudioPlayerStatus.Playing) {
+      const player_state = queue.player._state.status;
+      if (player_state === voice.AudioPlayerStatus.Playing) {
         buttonRow.components[0].data.style = ButtonStyle.Primary;
         queue.player.pause();
-      } else if (playerState === voice.AudioPlayerStatus.Paused) {
+      } else if (player_state === voice.AudioPlayerStatus.Paused) {
         buttonRow.components[0].data.style = ButtonStyle.Secondary;
         queue.player.unpause();
       }
 
-      updateQueue(queue);
+      queue.updateQueue();
       break;
 
     case 'skip':
       if (queue.repeat === serverQueue.repeat_off) queue.songs.shift();
       else if (queue.repeat === serverQueue.repeat_all) queue.songs.push(queue.songs.shift());
 
-      streamSong(queue);
+      queue.streamSong();
       break;
 
     case 'stop':
       queue.songs = [];
       buttonRow.components.forEach(component => component.data.style = ButtonStyle.Secondary);
-
-      streamSong(queue);
+      queue.streamSong();
       break;
 
     case 'repeat':
-      if (queue.repeat === serverQueue.repeat_off) {
-        buttonRow.components[3].data.style = ButtonStyle.Primary;
-        queue.repeat = serverQueue.repeat_all;
-      } else if (queue.repeat === serverQueue.repeat_all) {
-        buttonRow.components[3].data.style = ButtonStyle.Primary;
-        queue.repeat = serverQueue.repeat_single;
-      } else if (queue.repeat === serverQueue.repeat_single) {
-        buttonRow.components[3].data.style = ButtonStyle.Secondary;
-        queue.repeat = serverQueue.repeat_off;
+      switch (queue.repeat) {
+        case serverQueue.repeat_off:
+          buttonRow.components[3].data.style = ButtonStyle.Primary;
+          queue.repeat = serverQueue.repeat_all;
+          break;
+
+        case serverQueue.repeat_all:
+          buttonRow.components[3].data.style = ButtonStyle.Primary;
+          queue.repeat = serverQueue.repeat_single;
+          break;
+
+        case serverQueue.repeat_single:
+          buttonRow.components[3].data.style = ButtonStyle.Secondary;
+          queue.repeat = serverQueue.repeat_off;
+          break;
       }
 
-      updateQueue(queue);
+      queue.updateQueue();
       break
 
     case 'random':
@@ -321,12 +451,11 @@ client.on(Events.InteractionCreate, async interaction => {
         .map(({ value }) => value);
 
       queue.songs = [firstSong, ...shuffledSongs];
-      updateQueue(queue);
+      queue.updateQueue();
       break;
 
     case 'radio':
-      const message = messageMap.get(interaction.guildId)
-      message.toggle_radio();
+      interaction.reply({ components: [stationRow], ephemeral: true });
       break;
   }
 });
@@ -334,22 +463,31 @@ client.on(Events.InteractionCreate, async interaction => {
 // Select Menu
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isStringSelectMenu()) return;
-  if (!interaction?.member?.voice?.channel) return;
-  // if (!interaction?.values[0]) return;
+
+  const queue_ = queueMap.get(interaction.guildId);
+  const voice_channel = interaction.member?.voice?.channel;
+
+  if (!voice_channel || (queue_ && queue_?.voice_channel?.id !== voice_channel?.id)) {
+    const message = queue_?.voice_channel.id ? `Please join the bot's voice channel.` : `Please join a voice channel.`;
+    return interaction.reply({ content: message, ephemeral: true });
+  }
+
   interaction.deferUpdate().catch(console.error);
 
   const queue = queueMap.get(interaction.guildId) ?? new serverQueue(interaction.guild, interaction.member.voice.channel);
   queue.station = interaction.values[0];
-  // const voiceChannel = interaction.member.voice.channel;
+
+
+  const result = formatRadioInfo();
   if (interaction.customId === 'station')
     streamRadio(queue);
-  // streamRadio(interaction, interaction.values[0], voiceChannel);
 });
 
 // Connect / Disconnect
 client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
+  return;
   const queue = queueMap.get(oldState.guild.id)
-  const voiceChannel = queue?.voiceChannel;
+  const voiceChannel = queue.voice_channel;
 
   // console.log(oldState.id);
   // console.log(newState.id);
@@ -432,25 +570,20 @@ client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
 // Message
 client.on(Events.MessageCreate, async message => {
   if (message.author.bot) return;
-  if (message.member?.user?.id === process.env.clientId) return;
+  if (message.member.user.id === process.env.clientId) return;
 
   const guild = guilds.get(message.guildId);
-  if (guild.channelId !== message.channelId) return;
+  if (!guild || guild.channelId !== message.channelId) return;
+
   message.delete();
+  const voice_channel = message.member?.voice?.channel;
 
-  if (queueMap.get(message.guild.id)?.radio)
-    return message.channel.send(`<@${message.member.id}> Radio On.`)
-      .then(msg => global.setTimeout(() => msg.delete(), 5000));
+  if (!voice_channel)
+    return message.channel.send(`<@${message.member.id}> Please enter a voice channel.`).then(deleteMessage);
 
-  if (!message.member?.voice?.channel)
-    return message.channel.send(`<@${message.member.id}> Please enter a voice channel.`)
-      .then(msg => global.setTimeout(() => msg.delete(), 5000));
-
-  const voice_channel = message.member.voice.channel;
   const permissions = voice_channel.permissionsFor(message.client.user);
   if (!permissions.has('CONNECT') || !permissions.has('SPEAK'))
-    return message.channel.send(`<@${message.member.id}> Unable to enter/speak in voice.`)
-      .then(msg => global.setTimeout(() => msg.delete(), 5000));
+    return message.channel.send(`<@${message.member.id}> Unable to enter/speak in voice.`).then(deleteMessage);
 
   if (playdl.is_expired())
     await playdl.refreshToken();
@@ -458,223 +591,105 @@ client.on(Events.MessageCreate, async message => {
   if (message.content.includes('spotify.com'))
     message.content = message.content.replace(/\/intl-[^/]*\//, '/');
 
-
   const type = await playdl.validate(message.content);
 
   let result = {}, resultList = [];
-  if (type === 'yt_video') {
-    const songInfo = await playdl.video_info(message.content);
 
-    result = {
-      title: songInfo.video_details.title,
-      url: songInfo.video_details.url,
-      durRaw: songInfo.video_details.durationRaw,
-      thumb: songInfo.video_details.thumbnails.findLast(t => t).url
-    };
-  } else if (type === 'yt_playlist') {
-    const listInfo = await playdl.playlist_info(message.content, {
-      incomplete: true
-    });
-
-    if (!listInfo)
-      return message.channel.send(`<@${message.member.id}> Invalid/private playlist.`)
-        .then(msg => global.setTimeout(() => msg.delete(), 5000));
-
-    for (const songInfo of listInfo.videos) {
-      const resultItem = {
-        title: songInfo.title,
-        url: songInfo.url,
-        durRaw: songInfo.durationRaw,
-        thumb: songInfo.thumbnails.findLast(t => t).url
-      };
-
-      resultList.push(resultItem);
-    }
-  } else if (type === 'sp_track') {
-    const spotifySong = await playdl.spotify(message.content);
-    let artists = [];
-
-    spotifySong.artists.forEach(a => artists.push(a.name));
-    const songInfo = (await playdl.search(`${artists.join(', ')} ${spotifySong.name} provided to youtube`, {
-      type: 'video',
-      limit: 1
-    }))[0];
-
-    result = {
-      title: songInfo.title,
-      url: songInfo.url,
-      durRaw: songInfo.durationRaw,
-      thumb: songInfo.thumbnails.findLast(t => t).url
-    };
-  } else if (type === 'sp_playlist' || type === 'sp_album') {
-    const spotifyPlaylist = await playdl.spotify(message.content);
-    const promises = [];
-
-    for (const spotifyInfo of spotifyPlaylist.fetched_tracks.get('1')) {
-      let artists = [];
-      spotifyInfo.artists.forEach(a => artists.push(a.name));
-      promises.push(playdl.search(`${artists.join(', ')} ${spotifyInfo.name} provided to youtube`, {
-        type: 'video',
-        limit: 1
-      }));
+  switch (type) {
+    case 'yt_video': {
+      const songInfo = await playdl.video_info(message.content);
+      result = formatSongInfo(songInfo);
+      break;
     }
 
-    return Promise.all(promises).then(songList => {
-      for (const songInfo of songList.flat()) {
-        const resultItem = {
-          title: songInfo.title,
-          url: songInfo.url,
-          durRaw: songInfo.durationRaw,
-          thumb: songInfo.thumbnails.findLast(t => t).url
-        };
+    case 'yt_playlist': {
+      const listInfo = await playdl.playlist_info(message.content, { incomplete: true });
+      if (!listInfo)
+        return message.channel.send(`<@${message.member.id}> Invalid/private playlist.`).then(deleteMessage);
 
+      for (const songInfo of listInfo.videos) {
+        const resultItem = formatSongInfo(songInfo);
         resultList.push(resultItem);
       }
+      break;
+    }
 
-      setQueue(message, result, resultList);
-    });
-  } else if (type === 'search') {
-    const songInfo = (await playdl.search(message.content, {
-      type: 'video',
-      limit: 1
-    }))[0];
+    case 'sp_track': {
+      const spotifySong = await playdl.spotify(message.content);
+      const artists = spotifySong.artists.map(artist => artist.name);
 
-    if (!songInfo)
-      return message.channel.send(`<@${message.member.id}> No result found.`)
-        .then(msg => global.setTimeout(() => msg.delete(), 5000));
+      const [songInfo] = await playdl.search(`${artists.join(', ')} ${spotifySong.name} provided to youtube`, { type: 'video', limit: 1 });
+      result = formatSongInfo(songInfo);
+      break;
+    }
 
-    result = {
-      title: songInfo.title,
-      url: songInfo.url,
-      durRaw: songInfo.durationRaw,
-      thumb: songInfo.thumbnails.findLast(t => t).url
-    };
+    case 'sp_playlist':
+    case 'sp_album': {
+      const spotifyPlaylist = await playdl.spotify(message.content);
+      const promises = spotifyPlaylist.fetched_tracks.get('1').map(spotifySong => {
+        const artists = spotifySong.artists.map(artist => artist.name);
+        return playdl.search(`${artists.join(', ')} ${spotifySong.name} provided to youtube`, { type: 'video', limit: 1 });
+      });
+
+      return Promise.all(promises).then(songList => {
+        for (const songInfo of songList.flat()) {
+          const resultItem = formatSongInfo(songInfo);
+          resultList.push(resultItem);
+        }
+
+        setQueue(message, result, resultList);
+      });
+    }
+
+    case 'search': {
+      const [songInfo] = await playdl.search(message.content, { type: 'video', limit: 1 });
+
+      if (!songInfo)
+        return message.channel.send(`<@${message.member.id}> No result found.`).then(deleteMessage);
+
+      result = formatSongInfo(songInfo);
+      break;
+    }
+
+    default:
+      return message.channel.send(`<@${message.member.id}> Invalid type provided.`).then(deleteMessage);
   }
 
   setQueue(message, result, resultList);
 });
 
+function formatSongInfo(songInfo) {
+  const video_details = songInfo?.video_details ? songInfo.video_details : songInfo;
+
+  return {
+    title: video_details.title,
+    url: video_details.url,
+    durRaw: video_details.durationRaw,
+    thumb: video_details.thumbnails.findLast(t => t).url
+  };
+}
+
+function formatRadioInfo(station) {
+  return {
+    title: songInfo.title,
+    url: station,
+    durRaw: songInfo.durationRaw,
+    thumb: songInfo.thumbnails.findLast(t => t).url
+  };
+}
+
 async function setQueue(message, result, resultList) {
   const voice_channel = message.member.voice.channel;
   const queue = queueMap.get(message.guild.id) ?? new serverQueue(message.guild, voice_channel);
-  queueMap.set(message.guild.id, queue);
-
-  if (queue.songs.length) {
-    queue.load_songs(result, resultList);
-    return updateQueue(queue);
-  }
 
   try {
-    queue.setup_connection();
+    const song_list_length = queue.songs.length;
     queue.load_songs(result, resultList);
-    streamSong(queue);
+    song_list_length ? queue.updateQueue() : queue.streamSong();
   } catch (err) {
     queue.destroy();
     return message.channel.send(`${codeBlock('ml', err)}`);
   }
-}
-
-async function prepareSong(url) {
-  return new Promise(function (resolve, reject) {
-    youtubedl(url, {
-      noCheckCertificates: true,
-      noWarnings: true,
-      preferFreeFormats: true,
-      addHeader: ['referer:youtube.com', 'user-agent:googlebot'],
-      output: './music/%(title)s.ogg',
-      extractAudio: true,
-      restrictFilenames: true,
-      format: 'bestaudio'
-    }).then(resolve).catch(reject);
-  });
-}
-
-async function streamSong(queue) {
-  const song = queue.songs[0];
-
-  if (!song) {
-    if (queue.player) queue.player.stop();
-    return await updateQueue(queue);
-  }
-
-  const title = sanitize_filename(song.title);
-  try {
-    if (!fs.existsSync(`music/${title}.ogg.opus`)) {
-      const channel = await getChannel(queue.guild);
-      channel.sendTyping();
-
-      const source = await prepareSong(song.url);
-      const log = path.join(__dirname, 'music.txt');
-      const log_stream = fs.createWriteStream(log, { flags: 'a' });
-      log_stream.write(`song: ${title}\n\n${source}\n\n\n`);
-    }
-  } catch (err) {
-    return queue.destroy();
-  }
-
-  const resource = voice.createAudioResource(fs.createReadStream(`music/${title}.ogg.opus`), {
-    inputType: voice.StreamType.OggOpus //source.type
-  });
-
-  await queue.player.play(resource);
-
-  updateQueue(queue);
-}
-
-async function updateQueue(queue) {
-  let queueText = queueTitle;
-  let l = queue.songs.length;
-  let limit = false;
-
-  if (!queue.songs.slice(1).length) queueText += queueEmpty;
-  for (const song of queue.songs.slice(1).reverse()) {
-    l--;
-    queueText += `\n${l}\\. ${song.title} \u2013 [${song.durRaw}]`;
-    if (queueText.length > 1800) limit = true;
-  }
-
-  if (limit) {
-    queueText = queueText.slice(queueText.length - 1800);
-    queueText = queueText.slice(queueText.indexOf('\n'));
-    queueText = queueTitle + queueLimit + queueText;
-  }
-
-  let footerText = `${queue.songs.length.toString()} songs in queue.`;
-
-  if (queue.repeat === serverQueue.repeat_all)
-    footerText += '  |  Looping queue.';
-  else if (queue.repeat === serverQueue.repeat_single)
-    footerText += '  |  Looping current.';
-
-  if (queue.player?._state.status === voice.AudioPlayerStatus.Paused)
-    footerText += '  |  Paused.';
-
-  const display = new EmbedBuilder()
-    .setColor(queue.guild.members.me.displayColor)
-    .setTitle('No Song')
-    .setImage(defaultImage)
-    .setFooter({
-      text: footerText,
-      iconURL: client.user.displayAvatarURL()
-    });
-
-  if (queue.songs.length) {
-    display.setTitle(`[${queue.songs[0].durRaw}] - ${queue.songs[0].title}`);
-    display.setImage(queue.songs[0].thumb);
-  }
-
-  if (!queue.menu_radio) {
-    buttonRow.components.forEach(component => component.data.disabled = false);
-    radioRow.components[0].data.style = ButtonStyle.Secondary;
-    menu.setPlaceholder('No station selected.');
-  }
-
-  const interaction_message = await queue.message;
-  interaction_message.edit({
-    content: queueText,
-    embeds: [display],
-    components: [buttonRow, radioRow]
-  });
 }
 
 async function streamRadio(queue) {
@@ -684,8 +699,6 @@ async function streamRadio(queue) {
 
   if (!queue.songs[0]) queue.songs.shift();
   queue.songs.unshift(null);
-
-  queue.setup_connection();
 
   const resource = voice.createAudioResource(queue.station, {
     inputType: voice.StreamType.Opus //source.type
@@ -811,6 +824,10 @@ async function updateRadio(queue) {
   }
 }
 
+function deleteMessage(message) {
+  global.setTimeout(() => message.delete(), 5000);
+}
+
 function resetSetups() {
   const last_guild = Array.from(guilds.keys()).pop();
 
@@ -827,10 +844,10 @@ function resetSetups() {
 
         const message = messages.get(messageId);
         if (message) {
-          const queue_message = new queueMessage(guildId, message);
+          const guild = await client.guilds.fetch(guildId);
+          const queue_message = new queueMessage(guild, message);
           messageMap.set(guildId, queue_message);
-
-          message.edit(setup(message))
+          message.edit(setup(message));
         }
       }
 
@@ -839,40 +856,9 @@ function resetSetups() {
   });
 }
 
-async function getMessage(guild) {
-  const currentGuild = guilds.get(guild.id);
-  const channelId = currentGuild.channelId;
-  const messageId = currentGuild.messageId;
-  const channel = await guild.channels.cache.get(channelId);
-
-  if (channel) {
-    const messages = await channel.messages.fetch({
-      limit: 5
-    });
-
-    const message = await messages.get(messageId);
-    if (message) return message;
-  }
-}
-
-async function getChannel(guild, channel_id = null) {
-  const currentGuild = guilds.get(guild.id);
-
-  if (channel_id) {
-    return await guild.channels.cache.get(channel_id);
-  }
-
-  const channelId = currentGuild.channelId;
-  const channel = await guild.channels.cache.get(channelId);
-
-  if (channel) {
-    return channel;
-  }
-}
-
 fs.watchFile(guild_path, async function (curr, prev) {
   if (prev.mtime !== curr.mtime) {
-    process.stdout.write('[Guilds Refresh.]');
+    process.stdout.write('\n[Guilds Refresh.]');
 
     delete require.cache[require.resolve(guild_path)];
     const guild_refresh = await require(guild_path);
@@ -882,7 +868,7 @@ fs.watchFile(guild_path, async function (curr, prev) {
       guilds.set(guildId, ids);
 
       if (!messageMap.has(guildId)) {
-        const queue_message = new queueMessage(guildId);
+        const queue_message = new queueMessage(guild);
         messageMap.set(guildId, queue_message);
       }
     }
