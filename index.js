@@ -76,7 +76,7 @@ client.once(Events.ClientReady, async function (client) {
     }]
   });
 
-  await resetSetups();
+  await reset_setups();
   client.guilds.cache.forEach(guild => {
     const voice_state = guild.members.me.voice;
 
@@ -146,7 +146,7 @@ class serverQueue {
     this.player.on(voice.AudioPlayerStatus.Idle, () => {
       if (this.repeat === serverQueue.repeat_off) this.songs.shift();
       else if (this.repeat === serverQueue.repeat_all) this.songs.push(this.songs.shift());
-      this.streamSong();
+      this.stream_song();
     });
   }
 
@@ -183,7 +183,7 @@ class serverQueue {
     }
   }
 
-  updateQueue() {
+  update_queue() {
     let queueText = queueTitle;
     let l = this.songs.length;
     let limit = false;
@@ -241,7 +241,7 @@ class serverQueue {
     });
   }
 
-  static formatSongInfo(songInfo) {
+  static format_song(songInfo) {
     const video_details = songInfo?.video_details ? songInfo.video_details : songInfo;
 
     return {
@@ -253,7 +253,7 @@ class serverQueue {
     };
   }
 
-  static formatRadioInfo(station) {
+  static format_station(station) {
     return {
       title: station.label,
       url: station.value,
@@ -263,8 +263,7 @@ class serverQueue {
     };
   }
 
-  prepareSong(url) {
-    const queue = this;
+  prepare_song(url) {
 
     if (!this.prepared_songs.has(url)) {
       this.prepared_songs.set(url, youtubedl(url, {
@@ -277,38 +276,37 @@ class serverQueue {
         extractAudio: true,
         restrictFilenames: true,
         format: 'bestaudio'
-      }).then(() => queue.prepareNextSongs()));
+      }).then(() => this.prepare_next_songs()));
     }
 
     return this.prepared_songs.get(url);
   }
 
-  resetPreparedSongs() {
+  reset_prepared_songs() {
     this.prepared_songs.clear();
-    this.prepareNextSongs();
+    this.prepare_next_songs();
   }
 
-  prepareNextSongs() {
-    const queue = this;
+  prepare_next_songs() {
     if (this.prepared_songs.size < 3) {
       const song = this.songs.find(song => !this.prepared_songs.has(song.url) && this.song.url !== song.url);
       if (!song) return;
 
       const title = sanitize_filename(song.title);
       if (!fs.existsSync(`music/${title}.ogg.opus`)) {
-        this.prepareSong(song.url).then(() => queue.prepareNextSongs());
+        this.prepare_song(song.url).then(() => this.prepare_next_songs());
       } else {
         this.prepared_songs.set(song.url, Promise.resolve());
-        this.prepareNextSongs();
+        this.prepare_next_songs();
       }
     }
   }
 
-  async streamSong() {
+  async stream_song() {
     if (!this.songs.length) {
       this.prepared_songs.clear();
       if (this.player) this.player.stop();
-      return this.updateQueue();
+      return this.update_queue();
     }
 
     const title = sanitize_filename(this.song.title);
@@ -317,22 +315,17 @@ class serverQueue {
       if (!fs.existsSync(`music/${title}.ogg.opus`)) {
         const channel = await this.channel;
         channel.sendTyping();
-        await this.prepareSong(this.song.url);
-
-        // const source = await this.prepareSong(this.song.url);
-        // const log = path.resolve(__dirname, 'music.txt');
-        // const log_stream = fs.createWriteStream(log, { flags: 'a' });
-        // log_stream.write(`song: ${title}\n\n${source}\n\n\n`);
+        await this.prepare_song(this.song.url);
       }
     } catch (err) {
       return this.destroy();
     }
 
-    this.prepareNextSongs();
+    this.prepare_next_songs();
     if (!fs.existsSync(`music/${title}.ogg.opus`)) {
       this.songs.shift();
-      this.streamSong();
-      return this.message.channel.send(`Invalid source. Please try another.`).then(deleteMessage);
+      this.stream_song();
+      return this.message.channel.send(`Invalid source. Please try another.`).then(delete_message);
     }
 
     const resource = voice.createAudioResource(fs.createReadStream(`music/${title}.ogg.opus`), {
@@ -340,23 +333,23 @@ class serverQueue {
     });
 
     this.prepared_songs.delete(this.song.url);
-    await this.player.play(resource);
-    this.updateQueue();
+    this.player.play(resource);
+    this.update_queue();
   }
 
-  streamRadio() {
+  stream_radio() {
     const resource = voice.createAudioResource(this.song.url, {
       inputType: voice.StreamType.Opus //source.type
     });
 
     this.player.play(resource);
-    this.updateQueue();
+    this.update_queue();
   }
 
   destroy() {
     queueMap.delete(this.guild.id);
     if (this.connection) this.connection.destroy();
-    this.updateQueue();
+    this.update_queue();
 
     for (const property in this) {
       if (this.hasOwnProperty(property) && this[property] instanceof EventEmitter)
@@ -372,7 +365,7 @@ class queueMessage {
   constructor(guild, message = null) {
     this.guild = guild;
     this.message = message;
-    this.channel = this.getChannel();
+    this.channel = this.get_channel();
   }
 
   toggle_buttons() {
@@ -384,7 +377,7 @@ class queueMessage {
     });
   }
 
-  async getChannel() {
+  async get_channel() {
     const current_guild = guilds.get(this.guild.id);
 
     const channelId = current_guild.channelId;
@@ -393,7 +386,7 @@ class queueMessage {
     if (channel) return channel;
   }
 
-  async getMessage() {
+  async get_message() {
     const currentGuild = guilds.get(this.guild.id);
     const channelId = currentGuild.channelId;
     const messageId = currentGuild.messageId;
@@ -410,7 +403,7 @@ class queueMessage {
   }
 
   async refresh_message() {
-    this.message = await getMessage();
+    this.message = await get_message();
     return this.message;
   }
 }
@@ -473,7 +466,7 @@ client.on(Events.InteractionCreate, async interaction => {
         queue.player.unpause();
       }
 
-      queue.updateQueue();
+      queue.update_queue();
       break;
 
     case 'skip':
@@ -482,14 +475,14 @@ client.on(Events.InteractionCreate, async interaction => {
         else if (queue.repeat === serverQueue.repeat_all) queue.songs.push(queue.songs.shift());
       } else queue.songs.shift();
 
-      queue.resetPreparedSongs();
-      queue.streamSong();
+      queue.reset_prepared_songs();
+      queue.stream_song();
       break;
 
     case 'stop':
       queue.songs = [];
       buttonRow.components.forEach(component => component.setStyle(ButtonStyle.Secondary));
-      queue.streamSong();
+      queue.stream_song();
       break;
 
     case 'repeat':
@@ -510,7 +503,7 @@ client.on(Events.InteractionCreate, async interaction => {
           break;
       }
 
-      queue.updateQueue();
+      queue.update_queue();
       break
 
     case 'random':
@@ -522,8 +515,8 @@ client.on(Events.InteractionCreate, async interaction => {
         .map(({ value }) => value);
 
       queue.songs = [firstSong, ...shuffledSongs];
-      queue.resetPreparedSongs();
-      queue.updateQueue();
+      queue.reset_prepared_songs();
+      queue.update_queue();
       break;
 
     case 'radio':
@@ -537,11 +530,11 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isStringSelectMenu()) return;
   const action = interaction.customId;
 
-  const queue_ = queueMap.get(interaction.guildId);
+  const queue = queueMap.get(interaction.guildId);
   const voice_channel = interaction.member?.voice?.channel;
 
-  if (!voice_channel || (queue_ && queue_?.voice_channel?.id !== voice_channel?.id)) {
-    const message = queue_?.voice_channel.id ? `Please join the bot's voice channel.` : `Please join a voice channel.`;
+  if (!voice_channel || (queue && queue?.voice_channel?.id !== voice_channel?.id)) {
+    const message = queue?.voice_channel.id ? `Please join the bot's voice channel.` : `Please join a voice channel.`;
     return interaction.reply({ content: message, ephemeral: true });
   }
 
@@ -551,7 +544,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!selected) return;
 
   const station = interaction.component.options.find(r => r.value === selected);
-  const result = serverQueue.formatRadioInfo(station);
+  const result = serverQueue.format_station(station);
 
   switch (action) {
     case 'station':
@@ -658,14 +651,14 @@ client.on(Events.MessageCreate, async message => {
   const voice_channel = message.member?.voice?.channel;
 
   if (!voice_channel)
-    return message.channel.send(`<@${message.member.id}> Please enter a voice channel.`).then(deleteMessage);
+    return message.channel.send(`<@${message.member.id}> Please enter a voice channel.`).then(delete_message);
 
   // has voice channel but different than the bot
 
 
   const permissions = voice_channel.permissionsFor(message.client.user);
   if (!permissions || !permissions.has(serverQueue.connect_permissions))
-    return message.channel.send(`<@${message.member.id}> Unable to enter/speak in voice.`).then(deleteMessage);
+    return message.channel.send(`<@${message.member.id}> Unable to enter/speak in voice.`).then(delete_message);
 
   if (playdl.is_expired())
     await playdl.refreshToken();
@@ -680,17 +673,17 @@ client.on(Events.MessageCreate, async message => {
   switch (type) {
     case 'yt_video': {
       const songInfo = await playdl.video_info(message.content);
-      result = serverQueue.formatSongInfo(songInfo);
+      result = serverQueue.format_song(songInfo);
       break;
     }
 
     case 'yt_playlist': {
       const listInfo = await playdl.playlist_info(message.content, { incomplete: true });
       if (!listInfo)
-        return message.channel.send(`<@${message.member.id}> Invalid/private playlist.`).then(deleteMessage);
+        return message.channel.send(`<@${message.member.id}> Invalid/private playlist.`).then(delete_message);
 
       for (const songInfo of listInfo.videos) {
-        const resultItem = serverQueue.formatSongInfo(songInfo);
+        const resultItem = serverQueue.format_song(songInfo);
         resultList.push(resultItem);
       }
       break;
@@ -701,7 +694,7 @@ client.on(Events.MessageCreate, async message => {
       const artists = spotifySong.artists.map(artist => artist.name);
 
       const [songInfo] = await playdl.search(`${artists.join(', ')} ${spotifySong.name} provided to youtube`, { type: 'video', limit: 1 });
-      result = serverQueue.formatSongInfo(songInfo);
+      result = serverQueue.format_song(songInfo);
       break;
     }
 
@@ -715,7 +708,7 @@ client.on(Events.MessageCreate, async message => {
 
       return Promise.all(promises).then(songList => {
         for (const songInfo of songList.flat()) {
-          const resultItem = serverQueue.formatSongInfo(songInfo);
+          const resultItem = serverQueue.format_song(songInfo);
           resultList.push(resultItem);
         }
 
@@ -727,14 +720,14 @@ client.on(Events.MessageCreate, async message => {
       const [songInfo] = await playdl.search(message.content, { type: 'video', limit: 1 });
 
       if (!songInfo)
-        return message.channel.send(`<@${message.member.id}> No result found.`).then(deleteMessage);
+        return message.channel.send(`<@${message.member.id}> No result found.`).then(delete_message);
 
-      result = serverQueue.formatSongInfo(songInfo);
+      result = serverQueue.format_song(songInfo);
       break;
     }
 
     default:
-      return message.channel.send(`<@${message.member.id}> Invalid type provided.`).then(deleteMessage);
+      return message.channel.send(`<@${message.member.id}> Invalid type provided.`).then(delete_message);
   }
 
   setQueue(message, result, resultList);
@@ -748,20 +741,20 @@ function setQueue(message, result, resultList = []) {
     const song_list_length = queue.songs.length;
     queue.load_songs(result, resultList);
 
-    if (result?.radio) return queue.streamRadio();
-    song_list_length ? queue.updateQueue() : queue.streamSong();
+    if (result?.radio) return queue.stream_radio();
+    song_list_length ? queue.update_queue() : queue.stream_song();
   } catch (err) {
     queue.destroy();
     return message.channel.send(`${codeBlock('ml', err)}`);
   }
 }
 
-function deleteMessage(message) {
+function delete_message(message) {
   global.setTimeout(() => message.delete(), 5000);
 }
 
-function resetSetups() {
-  const last_guild = Array.from(guilds.keys()).pop();
+function reset_setups() {
+  const last_guild_id = Array.from(guilds.keys()).pop();
 
   return new Promise(function (resolve) {
     guilds.forEach(async ({ channelId, messageId }, guildId) => {
@@ -783,7 +776,7 @@ function resetSetups() {
         }
       }
 
-      if (guildId == last_guild) resolve();
+      if (guildId == last_guild_id) resolve();
     });
   });
 }
