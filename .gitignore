@@ -1,5 +1,6 @@
 .env
 .data
+.vscode
 guilds.json
 radio.json
 node_modules

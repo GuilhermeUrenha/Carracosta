@@ -16,7 +16,7 @@ exports.queueLimit = '\n\t**[ . . . ]**';
 exports.queueEmpty = '\n-# Search, Youtube, Spotify (Single / Playlist)';
 
 exports.setup = function (interaction, content = exports.queueTitle + exports.queueEmpty) {
-  const embed = new EmbedBuilder()
+  const display = new EmbedBuilder()
     .setColor(interaction.guild.members.me.displayColor)
     .setTitle('No Song')
     .setImage(exports.defaultImage)
@@ -27,7 +27,7 @@ exports.setup = function (interaction, content = exports.queueTitle + exports.qu
 
   const message = {
     content: content,
-    embeds: [embed],
+    embeds: [display],
     components: [exports.buttonRow, exports.radioRow]
   };
 
@@ -42,39 +42,27 @@ exports.channel_config = {
   position: 0
 }
 
+function newButton(custom_id, label, disabled = true, style = ButtonStyle.Secondary) {
+  return new ButtonBuilder()
+    .setCustomId(custom_id)
+    .setLabel(label)
+    .setStyle(style)
+    .setDisabled(disabled);
+}
+
 exports.buttonRow = new ActionRowBuilder()
   .addComponents(
-    new ButtonBuilder()
-      .setCustomId('pause')
-      .setLabel('\u23f5')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true),
-    new ButtonBuilder()
-      .setCustomId('skip')
-      .setLabel('\u23ED')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true),
-    new ButtonBuilder()
-      .setCustomId('stop')
-      .setLabel('\u23f9')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true),
-    new ButtonBuilder()
-      .setCustomId('repeat')
-      .setLabel('\u21BB')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true),
-    new ButtonBuilder()
-      .setCustomId('random')
-      .setLabel('\u21C4')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true));
+    newButton('pause', '\u23f5'),
+    newButton('skip', '\u23ED'),
+    newButton('stop', '\u23f9'),
+    newButton('repeat', '\u21BB'),
+    newButton('random', '\u21C4')
+  );
 
 exports.radioRow = new ActionRowBuilder()
-  .addComponents(new ButtonBuilder()
-    .setCustomId('radio')
-    .setLabel('\u23DA')
-    .setStyle(ButtonStyle.Secondary));
+  .addComponents(
+    newButton('radio', '\u23DA', false)
+  );
 
 exports.menu = new StringSelectMenuBuilder()
   .setCustomId('station')
