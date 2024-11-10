@@ -61,7 +61,8 @@ exports.buttonRow = new ActionRowBuilder()
 
 exports.radioRow = new ActionRowBuilder()
   .addComponents(
-    newButton('radio', '\u23DA', false)
+    newButton('radio', '\u23DA', false),
+    newButton('download', '\u2B73', false)
   );
 
 exports.menu = new StringSelectMenuBuilder()

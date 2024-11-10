@@ -6,13 +6,13 @@ require('dotenv').config();
 const guild_path = path.resolve(__dirname, './guilds.json');
 const guildMap = new Map(Object.entries(require(guild_path)));
 
-const serverQueue = require('./class/serverQueue.class.js');
-const queueMessage = require('./class/queueMessage.class.js');
+const serverQueue = require('./class/serverQueue.class');
+const queueMessage = require('./class/queueMessage.class');
 
 const {
   stationRow,
   buttonRow,
-} = require('./components.js');
+} = require('./components');
 
 const {
   Client,
@@ -114,7 +114,9 @@ client.on(Events.InteractionCreate, async interaction => {
   const action = interaction.customId;
 
   const queue = serverQueue.queueMap.get(interaction.guildId);
-  if (action !== 'radio') {
+  const button = buttonRow.components.find(c => c.data.custom_id == action);
+
+  if (!['radio', 'download'].includes(action)) {
     const voice_channel = interaction.member?.voice?.channel;
 
     if (!voice_channel || queue?.voice_channel.id !== voice_channel.id)
@@ -123,7 +125,6 @@ client.on(Events.InteractionCreate, async interaction => {
     interaction.deferUpdate().catch(console.error);
   }
 
-  const button = buttonRow.components.find(c => c.data.custom_id == action);
   switch (action) {
     case 'pause':
       const player_state = queue.player._state.status;
@@ -190,6 +191,11 @@ client.on(Events.InteractionCreate, async interaction => {
 
     case 'radio':
       interaction.reply({ components: [stationRow], ephemeral: true });
+      break;
+
+    case 'download':
+      const download = client.commands.get('download');
+      download.execute(interaction);
       break;
   }
 });

@@ -4,7 +4,7 @@ const {
   ChannelType,
   InteractionContextType
 } = require('discord.js');
-const { setup, channel_config } = require('../components.js');
+const { setup, channel_config } = require('../components');
 const path = require('node:path');
 const fs = require('node:fs');
 
@@ -14,7 +14,6 @@ module.exports = {
     .setDescription('channel setup.')
     .setContexts(InteractionContextType.Guild)
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
-
   async execute(interaction) {
     const guild_path = path.resolve(__dirname, '../guilds.json');
     const guildMap = new Map(Object.entries(require(guild_path)));

@@ -17,4 +17,4 @@ Music / Radio player Discord bot.
   * [GET /recommendations/available-genre-seeds](https://developer.spotify.com/documentation/web-api/reference/get-recommendation-genres)
 * [ ] ACRCloud music recognition (Slash Command)
 * [ ] Web Dashboard
-* [ ] Request bot to send music file attachment
+* [x] Request bot to send music file attachment

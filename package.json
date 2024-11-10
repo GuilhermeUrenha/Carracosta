@@ -4,7 +4,8 @@
   "description": "Discord Bot made by vieiras_",
   "main": "index.js",
   "scripts": {
-    "build": "pkg dsjs.js --targets node18-win-x64 --output Carracosta.exe"
+    "build": "pkg dsjs.js --targets node18-win-x64 --output Carracosta.exe",
+    "slash":"node ./deploy-commands"
   },
   "keywords": [],
   "author": "Gui#2435",

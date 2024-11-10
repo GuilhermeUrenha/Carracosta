@@ -11,7 +11,7 @@ module.exports = {
       option.setName('dice')
         .setDescription("Dice's to roll.")
         .setRequired(true)),
-  async execute(interaction) {
+  execute(interaction) {
     const dice = interaction.options.getString('dice');
     const baseDice = Array.from(dice),
       sortedNumbers = [],
