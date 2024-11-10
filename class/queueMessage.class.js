@@ -1,11 +1,13 @@
-const guild_path = '../guilds.json';
-const guilds = new Map(Object.entries(require(guild_path)));
+const path = require('node:path');
+const guild_path = path.resolve(__dirname, '../guilds.json');
+const guildMap = new Map(Object.entries(require(guild_path)));
 
 const {
   ChannelType,
 } = require('discord.js');
 
 const {
+  setup,
   buttonRow,
   radioRow
 } = require('../components');
@@ -32,38 +34,39 @@ module.exports = class queueMessage {
   }
 
   async get_channel() {
-    const current_guild = guilds.get(this.guild.id);
-
-    const channelId = current_guild.channelId;
-    const channel = await this.guild.channels.cache.get(channelId);
-
-    if (channel) return channel;
+    const current_guild = guildMap.get(this.guild.id);
+    const channels = await this.guild.channels.fetch();
+    return channels.get(current_guild.channelId);
   }
 
   async get_message() {
-    const currentGuild = guilds.get(this.guild.id);
+    const currentGuild = guildMap.get(this.guild.id);
     const channelId = currentGuild.channelId;
     const messageId = currentGuild.messageId;
-    const channel = await guild.channels.cache.get(channelId);
+
+    const channels = await this.guild.channels.fetch();
+    const channel = channels.get(channelId);
 
     if (channel) {
       const messages = await channel.messages.fetch({
         limit: 5
       });
 
-      const message = await messages.get(messageId);
-      if (message) return message;
+      return messages.get(messageId);
     }
   }
 
-  static reset_setups() {
-    const last_guild_id = Array.from(guilds.keys()).pop();
+  static reset_setups(client) {
+    const last_guild_id = Array.from(guildMap.keys()).pop();
 
-    return new Promise(function (resolve) {
-      guilds.forEach(async ({ channelId, messageId }, guildId) => {
-        const guild = await client.guilds.fetch(guildId);
-        const channels = guild.channels.cache.filter(channel => channel.type === ChannelType.GuildText);
-        const channel = channels.get(channelId);
+    return new Promise(async function (resolve) {
+      const guilds = await client.guilds.fetch();
+
+      guildMap.forEach(async ({ channelId, messageId }, guildId) => {
+        const guild = await guilds.get(guildId).fetch();
+        const channels = await guild.channels.fetch();
+        const text_channels = channels.filter(channel => channel.type === ChannelType.GuildText);
+        const channel = text_channels.get(channelId);
 
         if (channel) {
           const messages = await channel.messages.fetch({
@@ -72,7 +75,6 @@ module.exports = class queueMessage {
 
           const message = messages.get(messageId);
           if (message) {
-            const guild = await client.guilds.fetch(guildId);
             new queueMessage(guild, message);
             message.edit(setup(message));
           }

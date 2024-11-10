@@ -3,8 +3,11 @@ const path = require('node:path');
 const voice = require('@discordjs/voice');
 require('dotenv').config();
 
-const guild_path = './guilds.json';
-const guilds = new Map(Object.entries(require(guild_path)));
+const guild_path = path.resolve(__dirname, './guilds.json');
+const guildMap = new Map(Object.entries(require(guild_path)));
+
+const serverQueue = require('./class/serverQueue.class.js');
+const queueMessage = require('./class/queueMessage.class.js');
 
 const {
   stationRow,
@@ -52,8 +55,9 @@ for (const file of commandFiles) {
 
 client.once(Events.ClientReady, async function (client) {
   process.stdout.write('[Ready.]');
+  const guilds = await client.guilds.fetch();
 
-  const total_servers = client.guilds.cache.size;
+  const total_servers = guilds.size;
   client.user.setPresence({
     status: 'online',
     activities: [{
@@ -62,8 +66,9 @@ client.once(Events.ClientReady, async function (client) {
     }]
   });
 
-  await queueMessage.reset_setups();
-  client.guilds.cache.forEach(guild => {
+  await queueMessage.reset_setups(client);
+  guilds.forEach(async guild_obj => {
+    const guild = await guild_obj.fetch();
     const voice_state = guild.members.me.voice;
 
     if (voice_state && voice_state.channel) {
@@ -71,9 +76,6 @@ client.once(Events.ClientReady, async function (client) {
     }
   });
 });
-
-const serverQueue = require('./class/serverQueue.class.js');
-const queueMessage = require('./class/queueMessage.class.js');
 
 const playdl = require('play-dl');
 const spotifyPath = path.join(__dirname, '.data\\spotify.data');
@@ -253,7 +255,7 @@ client.on(Events.MessageCreate, async message => {
   if (message.author.bot) return;
   if (message.member.user.id === process.env.clientId) return;
 
-  const guild = guilds.get(message.guildId);
+  const guild = guildMap.get(message.guildId);
   if (!guild || guild.channelId !== message.channelId) return;
 
   message.delete();
@@ -347,16 +349,17 @@ client.on(Events.MessageCreate, async message => {
 fs.watchFile(guild_path, async function (curr, prev) {
   if (prev.mtime !== curr.mtime) {
     process.stdout.write('\n[Guilds Refresh.]');
+    const guilds = await client.guilds.fetch();
 
     delete require.cache[require.resolve(guild_path)];
     const guild_refresh = await require(guild_path);
-    guilds.clear();
+    guildMap.clear();
 
     for (const [guildId, ids] of Object.entries(guild_refresh)) {
-      guilds.set(guildId, ids);
+      guildMap.set(guildId, ids);
 
       if (!queueMessage.messageMap.has(guildId)) {
-        const guild = client.guilds.cache.get(guildId);
+        const guild = guilds.get(guildId).fetch();
         new queueMessage(guild);
       }
     }

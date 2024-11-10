@@ -1,16 +1,10 @@
 {
   "name": "carracosta",
-  "version": "3.0",
+  "version": "4.1",
   "description": "Discord Bot made by vieiras_",
   "main": "index.js",
-  "bin": {
-    "Carracosta": "./index.js"
-  },
   "scripts": {
-    "build": "pkg . --targets node18-win-x64 --output Carracosta.exe"
-  },
-  "pkg": {
-    "scripts": "commands/*.js"
+    "build": "pkg dsjs.js --targets node18-win-x64 --output Carracosta.exe"
   },
   "keywords": [],
   "author": "Gui#2435",

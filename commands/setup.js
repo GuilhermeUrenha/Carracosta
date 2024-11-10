@@ -17,18 +17,19 @@ module.exports = {
 
   async execute(interaction) {
     const guild_path = path.resolve(__dirname, '../guilds.json');
+    const guildMap = new Map(Object.entries(require(guild_path)));
 
-    const guilds = new Map(Object.entries(require(guild_path)));
     let message, channel;
+    const channels = await guild.channels.fetch();
+    const text_channels = channels.filter(channel => channel.type === ChannelType.GuildText);
 
-    const channels = interaction.guild.channels.cache.filter(channel => channel.type === ChannelType.GuildText);
-    const guild = guilds.get(interaction.guild.id);
+    const guild = guildMap.get(interaction.guild.id);
     const channelId = guild.channelId;
     const messageId = guild.messageId;
 
     if (messageId) {
       interaction.deferReply();
-      channel = channels.get(channelId);
+      channel = text_channels.get(channelId);
 
       if (channel) {
         let messages = await channel.messages.fetch({
@@ -40,8 +41,8 @@ module.exports = {
       if (message)
         channel = message.channel;
       else {
-        if (guilds.has(interaction.guild.id))
-          guilds.delete(interaction.guild.id);
+        if (guildMap.has(interaction.guild.id))
+          guildMap.delete(interaction.guild.id);
 
         if (!channel) {
           channel = await interaction.guild.channels.create(channel_config).catch(console.error);
@@ -49,12 +50,12 @@ module.exports = {
 
         message = await channel.send(setup(interaction));
 
-        guilds.set(message.guildId, {
+        guildMap.set(message.guildId, {
           channelId: channel.id,
           messageId: message.id
         });
 
-        fs.writeFileSync(guild_path, JSON.stringify(Object.fromEntries(guilds), null, 4), 'utf8');
+        fs.writeFileSync(guild_path, JSON.stringify(Object.fromEntries(guildMap), null, 4), 'utf8');
       }
       if (channel)
         return interaction.editReply(`<#${channel.id}>`);
@@ -63,12 +64,12 @@ module.exports = {
       channel = await interaction.guild.channels.create(channel_config).catch(console.error);
       message = await channel.send(setup(interaction));
 
-      guilds.set(message.guildId, {
+      guildMap.set(message.guildId, {
         channelId: channel.id,
         messageId: message.id
       });
 
-      fs.writeFileSync(guild_path, JSON.stringify(Object.fromEntries(guilds), null, 4), 'utf8');
+      fs.writeFileSync(guild_path, JSON.stringify(Object.fromEntries(guildMap), null, 4), 'utf8');
       interaction.editReply({
         content: `<#${channel.id}>`
       });
