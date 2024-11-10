@@ -1,9 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const voice = require('@discordjs/voice');
-const youtubedl = require('youtube-dl-exec');
-const EventEmitter = require('node:events');
-const sanitize_filename = require('./dlp_sanitize');
 require('dotenv').config();
 
 const guild_path = './guilds.json';
@@ -11,21 +8,13 @@ const guilds = new Map(Object.entries(require(guild_path)));
 
 const {
   setup,
-  queueTitle,
-  queueLimit,
-  queueEmpty,
-  radioImage,
-  defaultImage,
   stationRow,
   buttonRow,
-  radioRow,
 } = require('./components.js');
 
 const {
   Client,
   Collection,
-  EmbedBuilder,
-  PermissionsBitField,
   Events,
   GatewayIntentBits,
   ActivityType,
@@ -81,332 +70,13 @@ client.once(Events.ClientReady, async function (client) {
     const voice_state = guild.members.me.voice;
 
     if (voice_state && voice_state.channel) {
-      const queue = new serverQueue(guild, voice_state.channel);
+      new serverQueue(guild, voice_state.channel);
     }
   });
 });
 
-const queueMap = new Map();
-const messageMap = new Map();
-
-class serverQueue {
-  static repeat_off = 0;
-  static repeat_all = 1;
-  static repeat_single = 2;
-  static connect_permissions = [PermissionsBitField.Flags.Connect, PermissionsBitField.Flags.Speak];
-
-  connection = null;
-  player = null;
-  repeat = serverQueue.repeat_off;
-  songs = [];
-  prepared_songs = new Map();
-
-  constructor(guild, voice_channel) {
-    this.guild = guild;
-    this.voice_channel = voice_channel;
-
-    this.queue_message = messageMap.get(this.guild.id);
-    if (this.queue_message?.disabled) this.queue_message.toggle_buttons();
-
-    this.setup_player();
-    this.setup_connection();
-
-    queueMap.set(this.guild.id, this);
-  }
-
-  get channel() {
-    try {
-      return this.queue_message?.channel;
-    } catch (error) {
-      this.destroy();
-    }
-  }
-
-  get message() {
-    try {
-      return this.queue_message?.message;
-    } catch (error) {
-      this.destroy();
-    }
-  }
-
-  get song() {
-    const [song] = this.songs;
-    return song;
-  }
-
-  setup_player() {
-    this.player = voice.createAudioPlayer({
-      behaviors: {
-        noSubscriber: voice.NoSubscriberBehavior.Pause
-      }
-    });
-
-    // if (!queue.player.eventNames().some(e => e === voice.AudioPlayerStatus.Idle))
-    this.player.on(voice.AudioPlayerStatus.Idle, () => {
-      if (this.repeat === serverQueue.repeat_off) this.songs.shift();
-      else if (this.repeat === serverQueue.repeat_all) this.songs.push(this.songs.shift());
-      this.stream_song();
-    });
-  }
-
-  setup_connection() {
-    this.connection = voice.joinVoiceChannel({
-      channelId: this.voice_channel.id,
-      guildId: this.guild.id,
-      adapterCreator: this.guild.voiceAdapterCreator
-    });
-
-    this.connection.subscribe(this.player);
-    this.connection.on(voice.VoiceConnectionStatus.Disconnected, async () => {
-      try {
-        await Promise.race([
-          voice.entersState(this.connection, voice.VoiceConnectionStatus.Signalling, 5000),
-          voice.entersState(this.connection, voice.VoiceConnectionStatus.Connecting, 5000)
-        ]);
-      } catch (error) {
-        this.destroy();
-      }
-    });
-  }
-
-  load_songs(result, resultList) {
-    if (resultList.length) {
-      this.songs.push(...resultList);
-    } else {
-      if (!result.radio) {
-        this.songs.push(result)
-      } else {
-        if (this.song?.radio) this.songs.shift();
-        this.songs.unshift(result)
-      };
-    }
-  }
-
-  update_queue() {
-    let queueText = queueTitle;
-    let l = this.songs.length;
-    let limit = false;
-
-    if (!this.songs.slice(1).length) queueText += queueEmpty;
-    for (const song of this.songs.slice(1).reverse()) {
-      l--;
-      queueText += `\n${l}\\. ${song.title} \u2013 [${song.durRaw}]`;
-      if (queueText.length > 1800) limit = true;
-    }
-
-    if (limit) {
-      queueText = queueText.slice(queueText.length - 1800);
-      queueText = queueText.slice(queueText.indexOf('\n'));
-      queueText = queueTitle + queueLimit + queueText;
-    }
-
-    let footerText = `${this.songs.length} songs in queue.`;
-
-    if (this.repeat === serverQueue.repeat_all)
-      footerText += '  |  Looping queue.';
-    else if (this.repeat === serverQueue.repeat_single)
-      footerText += '  |  Looping current.';
-
-    if (this.song?.radio)
-      footerText += '  |  Playing Radio. ';
-
-    if (this.player._state.status === voice.AudioPlayerStatus.Paused)
-      footerText += '  |  Paused.';
-
-    const display = new EmbedBuilder()
-      .setColor(this.guild.members.me.displayColor)
-      .setTitle('No Song')
-      .setImage(defaultImage)
-      .setFooter({
-        text: footerText,
-        iconURL: client.user.displayAvatarURL()
-      });
-
-    if (this.songs.length) {
-      display.setImage(this.song.thumb);
-
-      const title = !this.song.radio ? `[${this.song.durRaw}] - ${this.song.title}` : `Station: ${this.song.title}`;
-      display.setTitle(title);
-    }
-
-    const radio_button = radioRow.components.find(c => c.data.custom_id == 'radio');
-    if (this.song?.radio) radio_button.setStyle(ButtonStyle.Primary);
-    else radio_button.setStyle(ButtonStyle.Secondary);
-
-    this.message.edit({
-      content: queueText,
-      embeds: [display],
-      components: [buttonRow, radioRow]
-    });
-  }
-
-  static format_song(songInfo) {
-    const video_details = songInfo?.video_details ? songInfo.video_details : songInfo;
-
-    return {
-      title: video_details.title,
-      url: video_details.url,
-      durRaw: video_details.durationRaw,
-      thumb: video_details.thumbnails.at(-1).url,
-      radio: false
-    };
-  }
-
-  static format_station(station) {
-    return {
-      title: station.label,
-      url: station.value,
-      durRaw: 0,
-      thumb: radioImage,
-      radio: true
-    };
-  }
-
-  prepare_song(url) {
-
-    if (!this.prepared_songs.has(url)) {
-      this.prepared_songs.set(url, youtubedl(url, {
-        noCheckCertificates: true,
-        noWarnings: true,
-        preferFreeFormats: true,
-        addHeader: ['referer:youtube.com', 'user-agent:googlebot'],
-        output: './music/%(title)s.ogg',
-        audioFormat: 'opus',
-        extractAudio: true,
-        restrictFilenames: true,
-        format: 'bestaudio'
-      }).then(() => this.prepare_next_songs()));
-    }
-
-    return this.prepared_songs.get(url);
-  }
-
-  reset_prepared_songs() {
-    this.prepared_songs.clear();
-    this.prepare_next_songs();
-  }
-
-  prepare_next_songs() {
-    if (this.prepared_songs.size < 3) {
-      const song = this.songs.find(song => !this.prepared_songs.has(song.url) && this.song.url !== song.url);
-      if (!song) return;
-
-      const title = sanitize_filename(song.title);
-      if (!fs.existsSync(`music/${title}.ogg.opus`)) {
-        this.prepare_song(song.url).then(() => this.prepare_next_songs());
-      } else {
-        this.prepared_songs.set(song.url, Promise.resolve());
-        this.prepare_next_songs();
-      }
-    }
-  }
-
-  async stream_song() {
-    if (!this.songs.length) {
-      this.prepared_songs.clear();
-      if (this.player) this.player.stop();
-      return this.update_queue();
-    }
-
-    const title = sanitize_filename(this.song.title);
-
-    try {
-      if (!fs.existsSync(`music/${title}.ogg.opus`)) {
-        const channel = await this.channel;
-        channel.sendTyping();
-        await this.prepare_song(this.song.url);
-      }
-    } catch (err) {
-      return this.destroy();
-    }
-
-    this.prepare_next_songs();
-    if (!fs.existsSync(`music/${title}.ogg.opus`)) {
-      this.songs.shift();
-      this.stream_song();
-      return this.message.channel.send(`Invalid source. Please try another.`).then(delete_message);
-    }
-
-    const resource = voice.createAudioResource(fs.createReadStream(`music/${title}.ogg.opus`), {
-      inputType: voice.StreamType.OggOpus //source.type
-    });
-
-    this.prepared_songs.delete(this.song.url);
-    this.player.play(resource);
-    this.update_queue();
-  }
-
-  stream_radio() {
-    const resource = voice.createAudioResource(this.song.url, {
-      inputType: voice.StreamType.Opus //source.type
-    });
-
-    this.player.play(resource);
-    this.update_queue();
-  }
-
-  destroy() {
-    queueMap.delete(this.guild.id);
-    if (this.connection) this.connection.destroy();
-    this.update_queue();
-
-    for (const property in this) {
-      if (this.hasOwnProperty(property) && this[property] instanceof EventEmitter)
-        this[property].removeAllListeners();
-      this[property] = null;
-    }
-  }
-}
-
-class queueMessage {
-  disabled = true;
-
-  constructor(guild, message = null) {
-    this.guild = guild;
-    this.message = message;
-    this.channel = this.get_channel();
-  }
-
-  toggle_buttons() {
-    this.disabled = !this.disabled;
-    buttonRow.components.forEach(component => component.setDisabled(this.disabled));
-
-    this.message.edit({
-      components: [buttonRow, radioRow]
-    });
-  }
-
-  async get_channel() {
-    const current_guild = guilds.get(this.guild.id);
-
-    const channelId = current_guild.channelId;
-    const channel = await this.guild.channels.cache.get(channelId);
-
-    if (channel) return channel;
-  }
-
-  async get_message() {
-    const currentGuild = guilds.get(this.guild.id);
-    const channelId = currentGuild.channelId;
-    const messageId = currentGuild.messageId;
-    const channel = await guild.channels.cache.get(channelId);
-
-    if (channel) {
-      const messages = await channel.messages.fetch({
-        limit: 5
-      });
-
-      const message = await messages.get(messageId);
-      if (message) return message;
-    }
-  }
-
-  async refresh_message() {
-    this.message = await get_message();
-    return this.message;
-  }
-}
+const serverQueue = require('./class/serverQueue.class.js');
+const queueMessage = require('./class/queueMessage.class.js');
 
 const playdl = require('play-dl');
 const spotifyPath = path.join(__dirname, '.data\\spotify.data');
@@ -444,7 +114,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isButton()) return;
   const action = interaction.customId;
 
-  const queue = queueMap.get(interaction.guildId);
+  const queue = serverQueue.queueMap.get(interaction.guildId);
   if (action !== 'radio') {
     const voice_channel = interaction.member?.voice?.channel;
 
@@ -530,7 +200,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isStringSelectMenu()) return;
   const action = interaction.customId;
 
-  const queue = queueMap.get(interaction.guildId);
+  const queue = serverQueue.queueMap.get(interaction.guildId);
   const voice_channel = interaction.member?.voice?.channel;
 
   if (!voice_channel || (queue && queue?.voice_channel?.id !== voice_channel?.id)) {
@@ -548,92 +218,36 @@ client.on(Events.InteractionCreate, async interaction => {
 
   switch (action) {
     case 'station':
-      setQueue(interaction, result)
+      set_queue(interaction, result)
       break;
   }
 });
 
 // Connect / Disconnect
-client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
-  return;
-  const queue = queueMap.get(oldState.guild.id)
-  const voiceChannel = queue.voice_channel;
+client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+  const queue = serverQueue.queueMap.get(newState.guild.id)
 
-  // console.log(oldState.id);
-  // console.log(newState.id);
+  if (!queue) return;
+  if (![oldState.channelId, newState.channelId].includes(queue.voice_channel.channelId)) return;
 
-  const self = oldState.id == process.env.clientId;
-  const join_channel = !oldState.channelId && newState.channelId;
-  const leave_channel = oldState.channelId && !newState.channelId;
-  const channel_change = !!oldState.channelId && !!newState.channelId && oldState.channelId !== newState.channelId;
-  // const channel_change_join = !self && channel_change && voiceChannel.channelId === newState.channelId && voiceChannel.channelId !== oldState.channelId;
-  // const channel_change_leave = !self && channel_change && voiceChannel.channelId === oldState.channelId && voiceChannel.channelId !== newState.channelId;
-
-
-  return;
-  console.log(self);
-  console.log(channel_change);
-  // console.log(voiceChannel.channelId);
-  console.log(newState.channelId);
-  // console.log(voiceChannel.channelId === newState.channelId);
-  // console.log(voiceChannel.channelId !== oldState.channelId);
-  console.log(channel_change_join);
-  console.log(channel_change_leave);
-  // console.log('');
+  const self = newState.id == process.env.clientId;
+  const channel_change = oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId;
+  const channel_leave = oldState.channelId && !newState.channelId;
 
   if (self) {
-    if (join_channel) {
-      if (voiceChannel.channelId !== newState.channelId) queue.voiceChannel = newState.channel;
-    }
-
     if (channel_change) {
-      const members = newState.channel.members.filter(m => !m.user.bot).size;
-      if (members) queue.voiceChannel = newState.channel;
+      queue.voice_channel = newState.channel;
+      queue.setup_connection();
     }
 
-    if (leave_channel) {
-      queue.destroy(oldState.guild);
-    }
-  } else {
-    if (channel_change) {
-      if (![oldState.channelId, newState.channelId].includes(voiceChannel.channelId)) return;
-      const members = voiceChannel.channel.members.filter(m => !m.user.bot).size;
-      if (members) queue.voiceChannel = newState.channel;
-    }
-
-    if (leave_channel) {
-      const members = newState.channel.members.filter(m => !m.user.bot).size;
-
-      if (members) return;
-      queue.destroy(oldState.guild);
-    }
+    if (channel_leave) queue.destroy();
   }
 
-
-  if (!self && channel_change) {
-    const members = newState.channel.members.filter(m => !m.user.bot).size;
-    if (members) queue.voiceChannel = newState.channel;
-  }
-
-
-
-
-  console.log(self);
-  // console.log(voiceChannel);
-  // console.log(oldState);
-  // console.log(newState);
-  if (!voiceChannel || voiceChannel.id !== (oldState.channelId || newState.channelId))
-    return;
-  // if (oldState.channelId && !newState.channelId)
-  // 	queue.setAloneTimer();
-  // else if (!oldState.channelId && newState.channelId) {
-  // 	global.clearTimeout(queue.alone);
-  // 	global.clearTimeout(queue.idle);
-  // }
-
-  // console.log(voiceChannel.members.filter(m => !m.user.bot).size);
-  if (voiceChannel && !voiceChannel.members.filter(m => !m.user.bot).size) {
-    queue.destroy(voiceChannel.guild);
+  if (!self) {
+    if (channel_change || channel_leave) {
+      const members = queue.voice_channel.channel.members.filter(m => !m.user.bot).size;
+      if (!members) queue.destroy();
+    }
   }
 });
 
@@ -648,13 +262,13 @@ client.on(Events.MessageCreate, async message => {
   message.delete();
   if (!message.content.length) return;
 
+  const queue = serverQueue.queueMap.get(message.guildId);
   const voice_channel = message.member?.voice?.channel;
 
-  if (!voice_channel)
-    return message.channel.send(`<@${message.member.id}> Please enter a voice channel.`).then(delete_message);
-
-  // has voice channel but different than the bot
-
+  if (!voice_channel || (queue && queue?.voice_channel?.id !== voice_channel?.id)) {
+    const msg = queue?.voice_channel.id ? `Please join the bot's voice channel.` : `Please join a voice channel.`;
+    return message.channel.send(`<@${message.member.id}> ${msg}`).then(delete_message);
+  }
 
   const permissions = voice_channel.permissionsFor(message.client.user);
   if (!permissions || !permissions.has(serverQueue.connect_permissions))
@@ -712,7 +326,7 @@ client.on(Events.MessageCreate, async message => {
           resultList.push(resultItem);
         }
 
-        setQueue(message, result, resultList);
+        set_queue(message, result, resultList);
       });
     }
 
@@ -730,12 +344,12 @@ client.on(Events.MessageCreate, async message => {
       return message.channel.send(`<@${message.member.id}> Invalid type provided.`).then(delete_message);
   }
 
-  setQueue(message, result, resultList);
+  set_queue(message, result, resultList);
 });
 
-function setQueue(message, result, resultList = []) {
+function set_queue(message, result, resultList = []) {
   const voice_channel = message.member.voice.channel;
-  const queue = queueMap.get(message.guild.id) ?? new serverQueue(message.guild, voice_channel);
+  const queue = serverQueue.queueMap.get(message.guild.id) ?? new serverQueue(message.guild, voice_channel);
 
   try {
     const song_list_length = queue.songs.length;
@@ -770,8 +384,7 @@ function reset_setups() {
         const message = messages.get(messageId);
         if (message) {
           const guild = await client.guilds.fetch(guildId);
-          const queue_message = new queueMessage(guild, message);
-          messageMap.set(guildId, queue_message);
+          new queueMessage(guild, message);
           message.edit(setup(message));
         }
       }
@@ -780,6 +393,9 @@ function reset_setups() {
     });
   });
 }
+
+
+// global.setInterval(() => console.log(queueMessage.messageMap.size), 1000)
 
 fs.watchFile(guild_path, async function (curr, prev) {
   if (prev.mtime !== curr.mtime) {
@@ -792,13 +408,13 @@ fs.watchFile(guild_path, async function (curr, prev) {
     for (const [guildId, ids] of Object.entries(guild_refresh)) {
       guilds.set(guildId, ids);
 
-      if (!messageMap.has(guildId)) {
-        const queue_message = new queueMessage(guild);
-        messageMap.set(guildId, queue_message);
+      if (!queueMessage.messageMap.has(guildId)) {
+        const guild = client.guilds.cache.get(guildId);
+        new queueMessage(guild);
       }
     }
 
-    for (const queue_message of Object.values(messageMap)) {
+    for (const queue_message of Object.values(queueMessage.messageMap)) {
       queue_message.refresh_message();
     }
   }
