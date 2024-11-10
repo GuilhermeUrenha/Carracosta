@@ -134,7 +134,7 @@ module.exports = class serverQueue {
     for (const song of this.songs.slice(1).reverse()) {
       l--;
       queueText += `\n${l}\\. ${song.title} \u2013 [${song.durRaw}]`;
-      if (queueText.length > 1800) limit = true;
+      if (!limit && queueText.length > 1800) limit = true;
     }
 
     if (limit) {
@@ -280,7 +280,7 @@ module.exports = class serverQueue {
     if (!fs.existsSync(`music/${title}.ogg.opus`)) {
       this.songs.shift();
       this.stream_song();
-      return this.message.channel.send(`Invalid source. Please try another.`).then(delete_message);
+      return this.message.channel.send(`Invalid source. Please try another.`).then(queueMessage.delete_message);
     }
 
     const resource = voice.createAudioResource(fs.createReadStream(`music/${title}.ogg.opus`), {
@@ -319,6 +319,18 @@ module.exports = class serverQueue {
 
     this.player.play(resource);
     this.update_queue();
+  }
+
+
+  static set_queue(message, result, resultList = []) {
+    const voice_channel = message.member.voice.channel;
+    const queue = serverQueue.queueMap.get(message.guild.id) ?? new serverQueue(message.guild, voice_channel);
+
+    const song_list_length = queue.songs.length;
+    queue.load_songs(result, resultList);
+
+    if (result?.radio) return queue.stream_radio();
+    song_list_length ? queue.update_queue() : queue.stream_song();
   }
 
   destroy() {

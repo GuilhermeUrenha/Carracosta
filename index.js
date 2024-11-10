@@ -7,7 +7,6 @@ const guild_path = './guilds.json';
 const guilds = new Map(Object.entries(require(guild_path)));
 
 const {
-  setup,
   stationRow,
   buttonRow,
 } = require('./components.js');
@@ -18,9 +17,7 @@ const {
   Events,
   GatewayIntentBits,
   ActivityType,
-  ChannelType,
   ButtonStyle,
-  codeBlock,
 } = require('discord.js');
 
 const client = new Client({
@@ -65,7 +62,7 @@ client.once(Events.ClientReady, async function (client) {
     }]
   });
 
-  await reset_setups();
+  await queueMessage.reset_setups();
   client.guilds.cache.forEach(guild => {
     const voice_state = guild.members.me.voice;
 
@@ -218,7 +215,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
   switch (action) {
     case 'station':
-      set_queue(interaction, result)
+      serverQueue.set_queue(interaction, result)
       break;
   }
 });
@@ -267,12 +264,12 @@ client.on(Events.MessageCreate, async message => {
 
   if (!voice_channel || (queue && queue?.voice_channel?.id !== voice_channel?.id)) {
     const msg = queue?.voice_channel.id ? `Please join the bot's voice channel.` : `Please join a voice channel.`;
-    return message.channel.send(`<@${message.member.id}> ${msg}`).then(delete_message);
+    return message.channel.send(`<@${message.member.id}> ${msg}`).then(queueMessage.delete_message);
   }
 
   const permissions = voice_channel.permissionsFor(message.client.user);
   if (!permissions || !permissions.has(serverQueue.connect_permissions))
-    return message.channel.send(`<@${message.member.id}> Unable to enter/speak in voice.`).then(delete_message);
+    return message.channel.send(`<@${message.member.id}> Unable to enter/speak in voice.`).then(queueMessage.delete_message);
 
   if (playdl.is_expired())
     await playdl.refreshToken();
@@ -294,7 +291,7 @@ client.on(Events.MessageCreate, async message => {
     case 'yt_playlist': {
       const listInfo = await playdl.playlist_info(message.content, { incomplete: true });
       if (!listInfo)
-        return message.channel.send(`<@${message.member.id}> Invalid/private playlist.`).then(delete_message);
+        return message.channel.send(`<@${message.member.id}> Invalid/private playlist.`).then(queueMessage.delete_message);
 
       for (const songInfo of listInfo.videos) {
         const resultItem = serverQueue.format_song(songInfo);
@@ -326,7 +323,7 @@ client.on(Events.MessageCreate, async message => {
           resultList.push(resultItem);
         }
 
-        set_queue(message, result, resultList);
+        serverQueue.set_queue(message, result, resultList);
       });
     }
 
@@ -334,68 +331,18 @@ client.on(Events.MessageCreate, async message => {
       const [songInfo] = await playdl.search(message.content, { type: 'video', limit: 1 });
 
       if (!songInfo)
-        return message.channel.send(`<@${message.member.id}> No result found.`).then(delete_message);
+        return message.channel.send(`<@${message.member.id}> No result found.`).then(queueMessage.delete_message);
 
       result = serverQueue.format_song(songInfo);
       break;
     }
 
     default:
-      return message.channel.send(`<@${message.member.id}> Invalid type provided.`).then(delete_message);
+      return message.channel.send(`<@${message.member.id}> Invalid type provided.`).then(queueMessage.delete_message);
   }
 
-  set_queue(message, result, resultList);
+  serverQueue.set_queue(message, result, resultList);
 });
-
-function set_queue(message, result, resultList = []) {
-  const voice_channel = message.member.voice.channel;
-  const queue = serverQueue.queueMap.get(message.guild.id) ?? new serverQueue(message.guild, voice_channel);
-
-  try {
-    const song_list_length = queue.songs.length;
-    queue.load_songs(result, resultList);
-
-    if (result?.radio) return queue.stream_radio();
-    song_list_length ? queue.update_queue() : queue.stream_song();
-  } catch (err) {
-    queue.destroy();
-    return message.channel.send(`${codeBlock('ml', err)}`);
-  }
-}
-
-function delete_message(message) {
-  global.setTimeout(() => message.delete(), 5000);
-}
-
-function reset_setups() {
-  const last_guild_id = Array.from(guilds.keys()).pop();
-
-  return new Promise(function (resolve) {
-    guilds.forEach(async ({ channelId, messageId }, guildId) => {
-      const guild = await client.guilds.fetch(guildId);
-      const channels = guild.channels.cache.filter(channel => channel.type === ChannelType.GuildText);
-      const channel = channels.get(channelId);
-
-      if (channel) {
-        const messages = await channel.messages.fetch({
-          limit: 5
-        });
-
-        const message = messages.get(messageId);
-        if (message) {
-          const guild = await client.guilds.fetch(guildId);
-          new queueMessage(guild, message);
-          message.edit(setup(message));
-        }
-      }
-
-      if (guildId == last_guild_id) resolve();
-    });
-  });
-}
-
-
-// global.setInterval(() => console.log(queueMessage.messageMap.size), 1000)
 
 fs.watchFile(guild_path, async function (curr, prev) {
   if (prev.mtime !== curr.mtime) {
