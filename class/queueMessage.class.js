@@ -24,13 +24,15 @@ module.exports = class queueMessage {
     queueMessage.messageMap.set(this.guild.id, this);
   }
 
-  toggle_buttons() {
+  toggle_buttons(edit = true) {
     this.disabled = !this.disabled;
     buttonRow.components.forEach(component => component.setDisabled(this.disabled));
 
-    this.message.edit({
-      components: [buttonRow, radioRow]
-    });
+    if (edit) {
+      this.message.edit({
+        components: [buttonRow, radioRow]
+      });
+    }
   }
 
   async get_channel() {

@@ -230,10 +230,10 @@ client.on(Events.InteractionCreate, async interaction => {
 
 // Connect / Disconnect
 client.on(Events.VoiceStateUpdate, (oldState, newState) => {
-  const queue = serverQueue.queueMap.get(newState.guild.id)
+  const queue = serverQueue.queueMap.get(oldState.guild.id) ?? serverQueue.queueMap.get(newState.guild.id)
 
   if (!queue) return;
-  if (![oldState.channelId, newState.channelId].includes(queue.voice_channel.channelId)) return;
+  if (![oldState.channelId, newState.channelId].includes(queue.voice_channel.id)) return;
 
   const self = newState.id == process.env.clientId;
   const channel_change = oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId;
@@ -250,7 +250,7 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 
   if (!self) {
     if (channel_change || channel_leave) {
-      const members = queue.voice_channel.channel.members.filter(m => !m.user.bot).size;
+      const members = queue.voice_channel.members.filter(m => !m.user.bot).size;
       if (!members) queue.destroy();
     }
   }

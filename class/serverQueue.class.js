@@ -82,7 +82,6 @@ module.exports = class serverQueue {
       }
     });
 
-    // if (!queue.player.eventNames().some(e => e === voice.AudioPlayerStatus.Idle))
     this.player.on(voice.AudioPlayerStatus.Idle, () => {
       if (this.repeat === serverQueue.repeat_off) this.songs.shift();
       else if (this.repeat === serverQueue.repeat_all) this.songs.push(this.songs.shift());
@@ -336,6 +335,10 @@ module.exports = class serverQueue {
   destroy() {
     serverQueue.queueMap.delete(this.guild.id);
     if (this.connection) this.connection.destroy();
+    this.songs = [];
+    this.prepared_songs.clear();
+    this.repeat = serverQueue.repeat_off;
+    this.queue_message.toggle_buttons(false);
     this.update_queue();
 
     for (const property in this) {
