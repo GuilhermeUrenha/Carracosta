@@ -21,4 +21,4 @@ Music / Radio player Discord bot.
 * [x] Request bot to send music file attachment
 * [ ] Package bot project into .exe
   * [ ] package into background service
-* [ ] Components class?
+* [x] Components class
