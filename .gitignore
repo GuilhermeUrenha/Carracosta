@@ -1,11 +1,9 @@
 .env
 .data
 .vscode
-guilds.json
-radio.json
+json
+music
 node_modules
-Carracosta.exe
 dsjs.js
 authorization.js
-music
-music.txt
+Carracosta.exe

@@ -10,16 +10,7 @@ const {
   ButtonStyle,
 } = require('discord.js');
 
-const {
-  queueTitle,
-  queueLimit,
-  queueEmpty,
-  radioImage,
-  defaultImage,
-  buttonRow,
-  radioRow,
-} = require('../components.js');
-
+const Components = require('./Components.class.js');
 const queueMessage = require('./queueMessage.class.js');
 
 module.exports = class serverQueue {
@@ -125,11 +116,11 @@ module.exports = class serverQueue {
   }
 
   update_queue() {
-    let queueText = queueTitle;
+    let queueText = Components.queueTitle;
     let l = this.songs.length;
     let limit = false;
 
-    if (!this.songs.slice(1).length) queueText += queueEmpty;
+    if (!this.songs.slice(1).length) queueText += Components.queueEmpty;
     for (const song of this.songs.slice(1).reverse()) {
       l--;
       queueText += `\n${l}\\. ${song.title} \u2013 [${song.durRaw}]`;
@@ -139,7 +130,7 @@ module.exports = class serverQueue {
     if (limit) {
       queueText = queueText.slice(queueText.length - 1800);
       queueText = queueText.slice(queueText.indexOf('\n'));
-      queueText = queueTitle + queueLimit + queueText;
+      queueText = Components.queueTitle + Components.queueLimit + Components.queueText;
     }
 
     let footerText = `${this.songs.length} songs in queue.`;
@@ -159,7 +150,7 @@ module.exports = class serverQueue {
     display.setTitle('No Song');
     display.setDescription(null);
     display.setThumbnail(null);
-    display.setImage(defaultImage);
+    display.setImage(Components.defaultImage);
     display.setFooter({
       text: footerText,
       iconURL: this.guild.client.user.displayAvatarURL()
@@ -180,14 +171,14 @@ module.exports = class serverQueue {
       }
     }
 
-    const radio_button = radioRow.components.find(c => c.data.custom_id == 'radio');
+    const radio_button = Components.radioRow.components.find(c => c.data.custom_id == 'radio');
     if (this.song?.radio) radio_button.setStyle(ButtonStyle.Primary);
     else radio_button.setStyle(ButtonStyle.Secondary);
 
     this.message.edit({
       content: queueText,
       embeds: [display],
-      components: [buttonRow, radioRow]
+      components: [Components.buttonRow, Components.radioRow]
     });
   }
 
@@ -210,7 +201,7 @@ module.exports = class serverQueue {
       title: station.label,
       url: station.value,
       durRaw: 0,
-      thumb: radioImage,
+      thumb: Components.radioImage,
       chapters: [],
       chapter_index: 0,
       radio: true
@@ -320,7 +311,6 @@ module.exports = class serverQueue {
     this.update_queue();
   }
 
-
   static set_queue(message, result, resultList = []) {
     const voice_channel = message.member.voice.channel;
     const queue = serverQueue.queueMap.get(message.guild.id) ?? new serverQueue(message.guild, voice_channel);
@@ -329,7 +319,10 @@ module.exports = class serverQueue {
     queue.load_songs(result, resultList);
 
     if (result?.radio) return queue.stream_radio();
-    song_list_length ? queue.update_queue() : queue.stream_song();
+    if (song_list_length) {
+      queue.update_queue()
+      queue.prepare_next_songs();
+    } else queue.stream_song();
   }
 
   destroy() {

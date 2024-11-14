@@ -12,9 +12,13 @@ Music / Radio player Discord bot.
 * [x] prepareSong -> next music on the queue
   * [x] prepareSong list -> in case skip while preparing
 * [x] Class file separation
+* [x] music file lifetime handler
 * [ ] Music recommendations
   * [GET /recommendations](https://developer.spotify.com/documentation/web-api/reference/get-recommendations)
   * [GET /recommendations/available-genre-seeds](https://developer.spotify.com/documentation/web-api/reference/get-recommendation-genres)
 * [ ] ACRCloud music recognition (Slash Command)
 * [ ] Web Dashboard
 * [x] Request bot to send music file attachment
+* [ ] Package bot project into .exe
+  * [ ] package into background service
+* [ ] Components class?
