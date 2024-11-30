@@ -7,7 +7,7 @@ module.exports = {
 		.setName('restart')
 		.setDescription('Restart the client.'),
 	async execute(interaction) {
-		process.stdout.write('[Exit.]');
+		console.log('[Exit.]');
 		await interaction.reply('`[Exit.]`');
 		await interaction.client.destroy();
 		process.exitCode = 0;

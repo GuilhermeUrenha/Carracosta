@@ -1,6 +1,8 @@
 .env
 .data
 .vscode
+img
+svg
 json
 music
 node_modules

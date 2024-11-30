@@ -2,25 +2,27 @@ const fs = require('node:fs');
 
 const {
   ChannelType,
+  PermissionsBitField,
 } = require('discord.js');
 
 const Components = require('./Components.class.js');
 
-module.exports = class queueMessage {
+module.exports = class QueueMessage {
   static messageMap = new Map();
   disabled = true;
 
   constructor(guild, message = null) {
     this.guild = guild;
     this.message = message;
-    this.channel = this.get_channel();
+    this.channel = null;
 
-    queueMessage.messageMap.set(this.guild.id, this);
+    this.init_channel();
+    QueueMessage.messageMap.set(this.guild.id, this);
   }
 
   toggle_buttons(edit = true) {
     this.disabled = !this.disabled;
-    Components.buttonRow.components.forEach(component => component.setDisabled(this.disabled));
+    Components.queueButtons.forEach(button => button.setDisabled(this.disabled));
 
     if (edit) {
       this.message.edit({
@@ -29,10 +31,10 @@ module.exports = class queueMessage {
     }
   }
 
-  async get_channel() {
+  async init_channel() {
     const current_guild = Components.guildMap.get(this.guild.id);
     const channels = await this.guild.channels.fetch();
-    return channels.get(current_guild.channelId);
+    this.channel = channels.get(current_guild.channelId);
   }
 
   async get_message() {
@@ -57,16 +59,14 @@ module.exports = class queueMessage {
     return this.message;
   }
 
-  static delete_message(message) {
+  static delete_message_timeout(message) {
     global.setTimeout(() => message.delete(), 5000);
   }
 
-  static reset_setups(client) {
+  static reset_setups(guilds) {
     const last_guild_id = Array.from(Components.guildMap.keys()).pop();
 
-    return new Promise(async function (resolve) {
-      const guilds = await client.guilds.fetch();
-
+    return new Promise(async function (resolve, reject) {
       Components.guildMap.forEach(async ({ channelId, messageId }, guildId) => {
         const guild = await guilds.get(guildId).fetch();
         const channels = await guild.channels.fetch();
@@ -74,14 +74,22 @@ module.exports = class queueMessage {
         const channel = text_channels.get(channelId);
 
         if (channel) {
-          const messages = await channel.messages.fetch({
-            limit: 5
-          });
+          try {
+            const messages = await channel.messages.fetch();
 
-          const message = messages.get(messageId);
-          if (message) {
-            new queueMessage(guild, message);
-            message.edit(Components.setup(message));
+            const message = messages.get(messageId);
+            if (message) {
+              new QueueMessage(guild, message);
+              message.edit(Components.setup(message));
+
+              const permissions = channel.permissionsFor(message.client.user);
+              if (permissions && permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+                const messages_delete = messages.filter(msg => msg.id !== messageId);
+                channel.bulkDelete(messages_delete, true).catch(console.error);
+              }
+            }
+          } catch (err) {
+            return console.log(`Could not fetch ${channel.guild.name} channel message`);
           }
         }
 
@@ -93,7 +101,7 @@ module.exports = class queueMessage {
   static guild_file_handler(client) {
     fs.watchFile(Components.guild_path, async function (curr, prev) {
       if (prev.mtime !== curr.mtime) {
-        process.stdout.write('\n[Guilds Refresh.]');
+        console.log('\n[Guilds Refresh.]');
         const guilds = await client.guilds.fetch();
 
         delete require.cache[require.resolve(Components.guild_path)];
@@ -103,13 +111,13 @@ module.exports = class queueMessage {
         for (const [guildId, ids] of Object.entries(guild_refresh)) {
           Components.guildMap.set(guildId, ids);
 
-          if (!queueMessage.messageMap.has(guildId)) {
+          if (!QueueMessage.messageMap.has(guildId)) {
             const guild = guilds.get(guildId).fetch();
-            new queueMessage(guild);
+            new QueueMessage(guild);
           }
         }
 
-        for (const queue_message of Object.values(queueMessage.messageMap)) {
+        for (const queue_message of Object.values(QueueMessage.messageMap)) {
           queue_message.refresh_message();
         }
       }

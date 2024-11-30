@@ -6,7 +6,7 @@ const {
 
 const fs = require('node:fs');
 const sanitize_filename = require('../dlp_sanitize');
-const serverQueue = require('../class/serverQueue.class');
+const ServerQueue = require('../class/ServerQueue.class');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -14,7 +14,7 @@ module.exports = {
     .setDescription('Download the current\'s queue song.')
     .setContexts(InteractionContextType.Guild),
   execute(interaction) {
-    const queue = serverQueue.queueMap.get(interaction.guildId)
+    const queue = ServerQueue.queueMap.get(interaction.guildId)
 
     let invalid = false;
     if (!queue) invalid = 'No set queue to download from.';
