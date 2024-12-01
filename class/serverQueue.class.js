@@ -28,6 +28,7 @@ module.exports = class ServerQueue {
   static auto_queue_on = 1;
 
   static connect_permissions = [PermissionsBitField.Flags.Connect, PermissionsBitField.Flags.Speak];
+  static progress_size = 15;
 
   connection = null;
   player = null;
@@ -142,7 +143,7 @@ module.exports = class ServerQueue {
     if (!this.songs.slice(1).length) queueText += Components.queueEmpty;
     for (const song of this.songs.slice(1).reverse()) {
       l--;
-      queueText += `\n${l}\\. ${song.title} \u2013 [${song.durRaw}]`;
+      queueText += `\n${l}\\. ${song.title} \u2013 [${song.dur_raw}]`;
       if (!limit && queueText.length > 1800) limit = true;
     }
 
@@ -178,16 +179,45 @@ module.exports = class ServerQueue {
     if (this.songs.length) {
       display.setImage(this.song.thumb);
 
-      const title = !this.song.radio ? `[${this.song.durRaw}] - ${this.song.title}` : `Station: ${this.song.title}`;
+      const title = !this.song.radio ? `[${this.song.dur_raw}] - ${this.song.title}` : `Station: ${this.song.title}`;
       display.setTitle(title);
 
-      if (this.song?.chapters.length) {
+      let descriptionText = '';
+
+      if (!this.song.radio) {
+        const timestamp = this.player.state.resource.playbackDuration;
+        const progress_bar = this.song.progress_marks.map((milestone, i) => {
+          const start = i == 0;
+          const end = i == ServerQueue.progress_size - 1;
+          const next_milestone = milestone + (this.song.dur_sec * 1000 / (ServerQueue.progress_size));
+
+          if (timestamp >= milestone && timestamp < next_milestone) {
+            if (start) return Components.emotes.line.pin_start;
+            else if (end) return Components.emotes.line.pin_end;
+            return Components.emotes.line.pin;
+
+          } else if (timestamp > milestone) {
+            if (start) return Components.emotes.line.start;
+            return Components.emotes.line.live;
+
+          } else if (timestamp < milestone) {
+            if (end) return Components.emotes.line.end;
+            return Components.emotes.line.dead;
+          }
+        })
+
+        descriptionText += progress_bar.join('');
+      }
+
+      if (this.song.chapters.length) {
         const chapters = this.song.chapters.map(c => `[${c.timestamp}] - ${c.title}`);
         chapters[this.song.chapter_index] = `**${chapters[this.song.chapter_index]}**`;
 
         display.setThumbnail(this.song.chapters[this.song.chapter_index].thumbnails.at(-1).url);
-        display.setDescription(chapters.join('\n'));
+        descriptionText += '\n' + chapters.join('\n');
       }
+
+      if (descriptionText.length) display.setDescription(descriptionText);
     }
 
     const radio_button = Components.radioRow.components.find(c => c.data.custom_id == 'radio');
@@ -211,10 +241,13 @@ module.exports = class ServerQueue {
     return {
       title: video_details.title,
       url: video_details.url,
-      durRaw: video_details.durationRaw,
+      dur_raw: video_details.durationRaw,
+      dur_sec: video_details.durationInSec,
       thumb: video_details.thumbnails.at(-1).url,
       chapters: video_details.chapters,
       chapter_index: 0,
+      progress_marks: Array(ServerQueue.progress_size).fill(0).map((n, i) => (i * video_details.durationInSec * 1000) / ServerQueue.progress_size),
+      progress_index: 0,
       radio: false
     };
   }
@@ -223,10 +256,13 @@ module.exports = class ServerQueue {
     return {
       title: station.label,
       url: station.value,
-      durRaw: 0,
+      dur_raw: 0,
+      dur_sec: 0,
       thumb: Components.radioImage,
       chapters: [],
       chapter_index: 0,
+      progress_marks: [],
+      progress_index: 0,
       radio: true
     };
   }
@@ -278,29 +314,33 @@ module.exports = class ServerQueue {
 
     const title = sanitize_filename(this.song.title);
     try {
-      if (!fs.existsSync(`music/${title}.ogg.opus`)) {
+      const song_file_exists = fs.existsSync(`music/${title}.ogg.opus`);
+      if (!song_file_exists) {
         this.channel.sendTyping();
         if (interaction) interaction.deferUpdate();
       }
 
+      if (song_file_exists) this.prepared_songs.set(this.song.url, Promise.resolve());
       this.prepare_song(this.song.url).then(() => {
-        this.prepare_next_songs();
-        if (!fs.existsSync(`music/${title}.ogg.opus`)) {
+        try {
+          this.prepare_next_songs();
+          const resource = voice.createAudioResource(fs.createReadStream(`music/${title}.ogg.opus`), {
+            inputType: voice.StreamType.OggOpus //source.type
+          });
+
+          this.prepared_songs.delete(this.song.url);
+          this.player.play(resource);
+          this.update_queue(interaction);
+
+          this.apply_player_handler();
+        } catch (error) {
+          console.log(error)
           console.log(`Invalid source: ${title}.ogg.opus`);
 
           this.songs.shift();
           this.stream_song(interaction);
           return this.channel.send(`Invalid source. Please try another.`).then(QueueMessage.delete_message_timeout);
         }
-
-        const resource = voice.createAudioResource(fs.createReadStream(`music/${title}.ogg.opus`), {
-          inputType: voice.StreamType.OggOpus //source.type
-        });
-
-        this.prepared_songs.delete(this.song.url);
-        this.player.play(resource);
-        this.update_queue(interaction);
-        this.apply_player_handler();
       });
     } catch (error) {
       this.destroy(error);
@@ -324,12 +364,27 @@ module.exports = class ServerQueue {
   player_handler(oldState, newState) {
     const milestones = this.song.chapters.map(c => c.seconds * 1000).filter(c => c > 0);
     this.player_interval = global.setInterval(async () => {
+      let update = false;
+
+      const index = this.song.progress_marks.reduce((result, current, index) => {
+        if (result !== null) return result;
+        if (this.player.state.resource.playbackDuration >= this.song.progress_marks[index] && this.player.state.resource.playbackDuration < this.song.progress_marks[index + 1]) return index;
+        return null;
+      }, null);
+
+      if (this.song.progress_index !== index) {
+        this.song.progress_index = index;
+        update = true;
+      }
+
       if (milestones.length) {
         if (this.song.chapter_index < milestones.length && newState.resource.playbackDuration >= milestones[this.song.chapter_index]) {
           this.song.chapter_index++;
-          this.update_queue();
+          update = true;
         }
       }
+
+      if (update) this.update_queue();
     }, 5000);
 
     this.player.once(voice.AudioPlayerStatus.Idle, () => {

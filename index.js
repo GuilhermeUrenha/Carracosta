@@ -397,6 +397,7 @@ client.on(Events.MessageCreate, async message => {
       const trackInfo = await Components.playdl.soundcloud(message.content);
       const [songInfo] = await Components.playdl.search(`"${trackInfo.name}" ${trackInfo.publisher.artist}`, { type: 'video', limit: 1 });
       result = ServerQueue.format_song(songInfo);
+      break;
     }
 
     case 'so_playlist':
