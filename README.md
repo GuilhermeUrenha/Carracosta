@@ -21,13 +21,20 @@ Music / Radio player Discord bot.
 * [x] New icons
   * [Solar Outline](https://www.svgrepo.com/collection/solar-outline-icons/)
 * [x] Request bot to send music file attachment
-* [ ] Maybe progress bar? .setDescription
+* [x] Maybe progress bar? .setDescription
 * [ ] Add more logging (cleared messages, re-check guilds refresh, check cleared music files, idk)
   * [ ] logger function ffs
 * [x] Components class
+* [ ] Button ask for ephemeral select to choose song from playlist to send to first and play immediately
+* [ ] save queue to file
+* [ ] maybe lite-esque db infra.? (guilds, queue)
+  * [ ] fn to serialize db data into json map and all
+* [ ] re-attempt connection on disc. -> sep. function
 * [ ] ACRCloud music recognition (Slash Command)
-* [ ] Save playlists -> ask for name -> conclude
-  * [ ] List playlists
+* [ ] Playlists
+  * [ ] Playlist button -> menu similar to radio -> select_menu, save, load, delete
+  * [ ] Save playlists -> modal? -> ask for name/desc. -> confirm (filter out radio/files just in case)
+  * saved per guild
 * [ ] Play files
 * [x] Soundcloud
 * [x] Deezer
